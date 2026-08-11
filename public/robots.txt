@@ -1,0 +1,8 @@
+User-agent: *
+Disallow: /admin.html
+Disallow: /api/admin/
+Disallow: /api/chat/
+
+# System Administrators only past this point.
+# Unauthorized scanning detected. Incident logged.
+# flag{robot_uprising_2026}

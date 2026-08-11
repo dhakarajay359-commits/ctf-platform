@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Network Graph — CTF</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<style>
+  #network-container {
+    width: 100%;
+    height: 70vh;
+    border: 1px solid var(--border-color);
+    border-radius: 16px;
+    background: rgba(10, 14, 20, 0.9);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5), inset 0 0 20px rgba(0, 210, 255, 0.05);
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <a href="/challenges.html">Challenges</a>
+    <a href="/network.html" class="active">Network</a>
+    <a href="/scoreboard.html">Scoreboard</a>
+    <a href="/payloads.html">Payloads</a>
+    <a href="/campaign.html">Campaign</a>
+    <button id="logoutBtn" class="btn-ghost btn-sm" style="margin-left:16px;">Sign out</button>
+  </div>
+</div>
+
+<main>
+  <h1 style="color: var(--primary); font-family: var(--mono); text-transform: uppercase;">LATERAL MOVEMENT VISUALIZER</h1>
+  <p style="color: var(--text-muted); margin-bottom: 24px;">Explore the network topology. Unlock new nodes by compromising their dependencies.</p>
+  
+  <div id="network-container"></div>
+</main>
+
+<footer class="foot">SIGNAL &gt; NOISE</footer>
+
+<script>
+  document.getElementById('logoutBtn').onclick = async () => {
+    await fetch('/api/auth/logout', { method: 'POST' });
+    window.location.href = '/';
+  };
+
+  fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+    if (d.event_name) {
+      document.getElementById('brandName').textContent = d.event_name.toUpperCase() + ' PLATFORM';
+    }
+  });
+
+  async function loadGraph() {
+    try {
+      const res = await fetch('/api/challenges/graph');
+      if (!res.ok) {
+        if (res.status === 403) {
+           document.getElementById('network-container').innerHTML = '<div style="padding: 20px; color: red;">CTF has not started or you are not logged in.</div>';
+        }
+        return;
+      }
+      
+      const data = await res.json();
+      
+      // Vis.js setup
+      const nodes = new vis.DataSet(data.nodes);
+      const edges = new vis.DataSet(data.edges);
+
+      const container = document.getElementById('network-container');
+      const networkData = { nodes: nodes, edges: edges };
+      const options = {
+        nodes: {
+          shape: 'dot',
+          size: 20,
+          font: {
+            color: '#ffffff',
+            face: 'monospace'
+          },
+          borderWidth: 2
+        },
+        edges: {
+          width: 2,
+          color: { color: 'rgba(0, 210, 255, 0.2)' },
+          smooth: { type: 'continuous' }
+        },
+        groups: {
+          solved: {
+            color: { background: 'rgba(0, 255, 102, 0.2)', border: '#00ff66', highlight: { background: 'rgba(0, 255, 102, 0.5)', border: '#00ff66' } },
+            font: { color: '#00ff66' },
+            icon: { face: 'monospace', code: '\uf00c', size: 50, color: '#00ff66' }
+          },
+          unlocked: {
+            color: { background: 'rgba(0, 210, 255, 0.2)', border: '#00d2ff', highlight: { background: 'rgba(0, 210, 255, 0.5)', border: '#00d2ff' } },
+            font: { color: '#ffffff' }
+          },
+          locked: {
+            color: { background: 'rgba(50, 50, 50, 0.2)', border: '#555', highlight: { background: 'rgba(100, 100, 100, 0.5)', border: '#555' } },
+            font: { color: '#555' }
+          }
+        },
+        physics: {
+          stabilization: false,
+          barnesHut: {
+            gravitationalConstant: -2000,
+            springConstant: 0.04,
+            springLength: 95
+          }
+        },
+        interaction: {
+          hover: true,
+          tooltipDelay: 200
+        }
+      };
+      
+      new vis.Network(container, networkData, options);
+
+    } catch (e) {
+      console.error(e);
+      document.getElementById('network-container').innerHTML = '<div style="padding: 20px; color: red;">Failed to load network graph.</div>';
+    }
+  }
+
+  loadGraph();
+</script>
+</body>
+</html>

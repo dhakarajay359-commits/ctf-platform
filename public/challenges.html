@@ -1,0 +1,1177 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Challenges — CTF</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.6.0/dist/confetti.browser.min.js"></script>
+<style>
+/* Grid Layout Overrides */
+#grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 24px;
+  margin-top: 30px;
+}
+
+/* CRT Overlay */
+.crt-overlay {
+  position: fixed;
+  top: 0; left: 0; width: 100%; height: 100%;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%), linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06));
+  background-size: 100% 2px, 3px 100%;
+  pointer-events: none;
+  z-index: 9999;
+  opacity: 0.1;
+}
+
+/* Premium 3D Tilt Card */
+.challenge-card {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--border-color);
+  border-radius: 16px;
+  padding: 24px;
+  position: relative;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  min-height: 180px;
+  
+  /* 3D Transform Setup */
+  transform-style: preserve-3d;
+  transform: perspective(1000px);
+  transition: transform 0.1s, border-color 0.3s, box-shadow 0.3s;
+  box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+  overflow: hidden;
+}
+
+.challenge-card::before {
+  content: ''; position: absolute; top: 0; left: 0; width: 100%; height: 2px;
+  background: linear-gradient(90deg, transparent, var(--border-color), transparent);
+  transition: 0.3s;
+  z-index: 10;
+}
+
+.challenge-card:hover {
+  border-color: rgba(0, 210, 255, 0.3);
+  box-shadow: 0 20px 40px rgba(0, 210, 255, 0.15), 0 0 0 1px rgba(0,210,255,0.1) inset;
+}
+.challenge-card:hover::before {
+  background: linear-gradient(90deg, transparent, var(--primary), transparent);
+}
+
+/* The Tracking Glow */
+.card-glow {
+  position: absolute;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(0, 210, 255, 0.15) 0%, transparent 70%);
+  border-radius: 50%;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.3s ease;
+  transform: translate(-50%, -50%);
+  z-index: 0;
+}
+.challenge-card:hover .card-glow {
+  opacity: 1;
+}
+
+/* Internal Card Content */
+.card-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  transform: translateZ(30px); /* Pops out slightly during 3D tilt */
+}
+
+.card-cat {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--primary);
+  text-transform: uppercase;
+  letter-spacing: 1.5px;
+  margin-bottom: 12px;
+}
+.card-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #fff;
+  margin-bottom: 16px;
+  line-height: 1.3;
+}
+
+.card-footer {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-end;
+  margin-top: auto;
+}
+.card-points {
+  font-family: var(--mono);
+  font-size: 14px;
+  font-weight: 700;
+  color: #fff;
+  background: rgba(255,255,255,0.05);
+  padding: 6px 12px;
+  border-radius: 20px;
+  border: 1px solid rgba(255,255,255,0.1);
+}
+
+/* States */
+.challenge-card.fogged {
+  opacity: 0.4;
+  filter: blur(2px) grayscale(1);
+  cursor: not-allowed;
+  transform: none !important;
+}
+.challenge-card.solved {
+  border-color: rgba(0, 255, 102, 0.4);
+  background: rgba(0, 255, 102, 0.05);
+}
+.challenge-card.solved::before {
+  background: linear-gradient(90deg, transparent, var(--success), transparent);
+}
+.challenge-card.solved .card-glow {
+  background: radial-gradient(circle, rgba(0, 255, 102, 0.15) 0%, transparent 70%);
+}
+.challenge-card.solved .card-points {
+  color: var(--success);
+  border-color: rgba(0, 255, 102, 0.3);
+  background: rgba(0, 255, 102, 0.1);
+}
+.challenge-card.solved::after {
+  content: 'COMPROMISED';
+  position: absolute;
+  top: 24px;
+  right: -45px;
+  transform: rotate(45deg);
+  background: #FFD700;
+  color: #000;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 800;
+  width: 180px;
+  text-align: center;
+  padding: 5px 0;
+  letter-spacing: 2px;
+  box-shadow: 0 0 15px rgba(255, 215, 0, 0.6);
+  z-index: 5;
+}
+
+@keyframes hardPulse {
+  0% { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-color: var(--border-color); }
+  50% { box-shadow: 0 10px 30px rgba(255, 51, 102, 0.2), inset 0 0 10px rgba(255, 51, 102, 0.1); border-color: rgba(255, 51, 102, 0.6); }
+  100% { box-shadow: 0 10px 30px rgba(0,0,0,0.5); border-color: var(--border-color); }
+}
+
+.challenge-card.hard:not(.solved):not(.fogged) {
+  animation: hardPulse 2s infinite ease-in-out;
+}
+.challenge-card.hard:not(.solved):not(.fogged):hover {
+  animation: none;
+  border-color: rgba(255, 51, 102, 0.8);
+  box-shadow: 0 20px 40px rgba(255, 51, 102, 0.2), inset 0 0 0 1px rgba(255, 51, 102, 0.1);
+}
+.challenge-card.hard:not(.solved):not(.fogged):hover::before {
+  background: linear-gradient(90deg, transparent, rgba(255, 51, 102, 1), transparent);
+}
+.challenge-card.hard:not(.solved):not(.fogged) .card-glow {
+  background: radial-gradient(circle, rgba(255, 51, 102, 0.15) 0%, transparent 70%);
+}
+
+/* Health Bar Overrides */
+.health-bar-container {
+  width: 100%;
+  background: rgba(0, 0, 0, 0.6);
+  border: 1px solid rgba(0, 210, 255, 0.2);
+  border-radius: 6px;
+  height: 30px;
+  position: relative;
+  overflow: hidden;
+  margin-bottom: 40px;
+  display: flex;
+  align-items: center;
+  box-shadow: inset 0 0 10px rgba(0,0,0,0.8), 0 0 15px rgba(0, 210, 255, 0.05);
+}
+.health-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, rgba(0, 210, 255, 0.3) 0%, var(--primary) 100%);
+  width: 100%;
+  transition: width 1s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: 0 0 20px var(--primary-glow);
+  position: relative;
+}
+.health-bar-fill::after {
+  content: ''; position: absolute; top: 0; right: 0; width: 2px; height: 100%;
+  background: #fff; box-shadow: 0 0 8px #fff, 0 0 15px var(--primary);
+}
+.health-bar-text {
+  position: absolute;
+  width: 100%;
+  text-align: center;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  color: #fff;
+  letter-spacing: 4px;
+  text-shadow: 1px 1px 2px rgba(0,0,0,1), -1px -1px 2px rgba(0,0,0,1);
+  z-index: 2;
+}
+
+/* Fingerprint Architecture */
+.fingerprint-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-top: 10px;
+  padding-bottom: 20px;
+}
+.fingerprint-username {
+  position: relative;
+  margin-bottom: 24px;
+}
+.fingerprint-username::after {
+  content: '';
+  position: absolute;
+  bottom: -24px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 2px;
+  height: 24px;
+  background: rgba(0, 210, 255, 0.5);
+}
+.fingerprint-badges {
+  display: flex;
+  justify-content: center;
+  flex-wrap: wrap;
+  gap: 16px;
+  max-width: 100%;
+}
+</style>
+<script src="/js/notifications.js"></script>
+<script src="/js/timer.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/anticheat.js"></script>
+<link rel="stylesheet" href="/css/terminal.css">
+<script src="/js/terminal.js"></script>
+</head>
+<body>
+<div class="crt-overlay"></div>
+<div class="top-nav">
+  <div class="brand">
+    <span class="dot"></span> <span id="brandName">CTF PLATFORM</span>
+    <div class="live-badge">
+      <span class="live-dot"></span>
+      LIVE
+    </div>
+  </div>
+  <div class="nav-links">
+    <a href="/challenges.html" class="active">Challenges</a>
+    <a href="/scoreboard.html">Scoreboard</a>
+    <a href="/payloads.html">Payloads</a>
+    <a href="/campaign.html">Campaign</a>
+    <button id="profileBtn" class="btn-ghost btn-sm" style="margin-left:16px;">My Profile</button>
+    <button id="logoutBtn" class="btn-ghost btn-sm">Sign out</button>
+  </div>
+</div>
+
+<main>
+  <div id="anomalyBanner" class="challenge-card hard hidden" style="text-align:center; font-size: 16px; margin-bottom: 24px; min-height: auto; padding: 12px 16px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px;">
+    <strong style="color:var(--danger); font-family:var(--mono); letter-spacing:1px; text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); display: flex; align-items: center; gap: 4px;">
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
+      ANOMALY DETECTED:
+    </strong> 
+    <span id="anomalyDesc" style="color:var(--text-main);"></span> 
+    <span style="color:var(--text-muted); display: flex; align-items: center; gap: 4px; margin-left: 8px;">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+    </span> 
+    <span id="anomalyTimer" style="font-family:var(--mono); color:var(--danger); font-weight: bold;"></span>
+  </div>
+
+  <div id="headlineCard" class="challenge-card hidden" style="margin-bottom: 24px; min-height: auto; padding: 20px; text-align: center; border-color: rgba(255, 170, 0, 0.5); background: rgba(255, 170, 0, 0.05); cursor: default; overflow: hidden;">
+    <div class="card-glow" style="background: radial-gradient(circle, rgba(255, 170, 0, 0.2) 0%, transparent 70%);"></div>
+    <div class="card-content" style="pointer-events: none;">
+      <div style="font-family: var(--mono); font-size: 11px; color: #ffaa00; letter-spacing: 2px; margin-bottom: 10px;">GLOBAL BROADCAST</div>
+      <div id="headlineText" style="font-size: 18px; font-weight: 400; color: #fff; line-height: 1.5; text-shadow: 0 0 10px rgba(255, 170, 0, 0.3);"></div>
+    </div>
+  </div>
+
+  <div class="health-bar-container">
+    <div class="health-bar-fill" id="healthFill" style="width: 100%;"></div>
+    <div class="health-bar-text" id="healthText">100.0% GLOBAL NETWORK INTEGRITY</div>
+  </div>
+
+  <div class="category-tabs" id="categoryTabs"></div>
+
+  <!-- Threat Intel Feed -->
+  <div style="position: fixed; left: 20px; bottom: 20px; width: 300px; height: 250px; background: rgba(5, 8, 12, 0.85); border: 1px solid var(--border-color); border-radius: 4px; z-index: 1000; display: flex; flex-direction: column; font-family: var(--mono); font-size: 11px; pointer-events: auto;">
+    <div style="background: rgba(0, 210, 255, 0.1); padding: 5px 10px; color: var(--primary); border-bottom: 1px solid var(--border-color); font-weight: bold; letter-spacing: 1px;">THREAT INTEL FEED</div>
+    <div id="threatFeed" style="flex: 1; padding: 10px; overflow-y: auto; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
+      <div>[SYS] Intercepting network traffic...</div>
+    </div>
+  </div>
+
+  <!-- Live Widgets -->
+  <div id="liveWidgetsContainer" style="margin-top: 30px; margin-bottom: 10px; display: none;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+      <!-- Trending Heat -->
+      <div>
+        <div onclick="document.getElementById('trendingWidgetGrid').classList.toggle('hidden')" style="cursor: pointer; font-family: var(--mono); font-size: 13px; color: var(--danger); letter-spacing: 2px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; user-select: none;">
+          <span class="live-dot" style="background: var(--danger); box-shadow: 0 0 8px var(--danger);"></span>
+          TRENDING HEAT
+          <span style="margin-left:auto; font-size:10px;">[▼]</span>
+        </div>
+        <div id="trendingWidgetGrid" class="hidden" style="display: flex; flex-direction: column; gap: 16px;"></div>
+      </div>
+      <!-- Most Solved -->
+      <div>
+        <div onclick="document.getElementById('mostSolvedWidgetGrid').classList.toggle('hidden')" style="cursor: pointer; font-family: var(--mono); font-size: 13px; color: var(--success); letter-spacing: 2px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; user-select: none;">
+          <span class="live-dot" style="background: var(--success); box-shadow: 0 0 8px var(--success);"></span>
+          MOST SOLVED
+          <span style="margin-left:auto; font-size:10px;">[▼]</span>
+        </div>
+        <div id="mostSolvedWidgetGrid" class="hidden" style="display: flex; flex-direction: column; gap: 16px;"></div>
+      </div>
+    </div>
+  </div>
+  
+  <!-- The Flat Grid -->
+  <div id="grid"></div>
+
+</main>
+
+<footer class="foot">SIGNAL &gt; NOISE</footer>
+
+<!-- Profile Modal (Fingerprint) -->
+<div class="modal-backdrop hidden" id="profileModal">
+  <div class="modal" style="max-width: 800px; text-align: center; max-height: 90vh; overflow-y: auto;">
+    <button class="modal-close" onclick="document.getElementById('profileModal').classList.add('hidden')">×</button>
+    <div class="eyebrow">Hacker Fingerprint</div>
+    
+    <div class="fingerprint-container">
+      <div class="fingerprint-username">
+        <div id="usernameCard" class="challenge-card" style="min-height: auto; padding: 12px 24px; display: inline-block; transform-style: preserve-3d; transform: perspective(1000px); border-radius: 12px; cursor: default;">
+          <div class="card-glow" id="usernameGlow"></div>
+          <h2 id="profileTeamName" style="margin: 0; font-size: 26px; position: relative; z-index: 2; background: linear-gradient(90deg, #ff00aa, #00d2ff, #00ff66); -webkit-background-clip: text; -webkit-text-fill-color: transparent; text-transform: uppercase; letter-spacing: 2px;">Loading...</h2>
+        </div>
+      </div>
+      <div class="fingerprint-badges" id="treeBranches">
+        <!-- Dynamically populated badges -->
+      </div>
+    </div>
+    
+    <div id="syndicateSection" class="hidden" style="margin-top: 30px; width: 100%; max-width: 400px; text-align: left; margin-left: auto; margin-right: auto;">
+      <div style="font-family: var(--mono); color: var(--primary); font-size: 13px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
+        <span>SYNDICATE ROSTER</span>
+        <button id="assembleBtn" class="btn-ghost btn-sm" style="font-size: 10px; padding: 4px 8px; border: 1px solid var(--primary);">Assemble (Share Credentials)</button>
+      </div>
+      <div id="assembleMsg" class="hidden" style="margin-bottom: 10px; padding: 10px; background: rgba(0,255,204,0.1); border: 1px solid var(--primary); font-family: var(--mono); font-size: 11px; text-align: center; color: var(--primary);"></div>
+      <div id="rosterList" style="display: flex; flex-direction: column; gap: 8px;">
+        <!-- Inputs will go here -->
+      </div>
+      <button id="saveRosterBtn" class="btn-primary" style="margin-top: 10px; width: 100%; font-size: 12px; padding: 6px;">Update Roster</button>
+      <div id="rosterMsg" style="margin-top: 10px; font-size: 12px; font-family: var(--mono); text-align: center;"></div>
+    </div>
+    
+    <button id="agentEvalBtn" class="btn-primary" style="margin-top:40px; width:100%; max-width: 400px;">Initialize Agent Evaluation</button>
+    <div id="agentEvalContainer" class="challenge-card hidden" style="margin-top:20px; text-align:left; font-family:var(--mono); font-size:13px; color:#00D2FF; min-height: 100px; padding: 15px; cursor: default;">
+      <div class="card-glow" id="evalGlow"></div>
+      <div class="card-content" id="agentEvalText" style="pointer-events: none;"></div>
+    </div>
+  </div>
+</div>
+
+<!-- Challenge Modal -->
+<div class="modal-backdrop hidden" id="modalBackdrop">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let challenges = [];
+let activeCategory = 'All';
+let fingerprintChartObj = null;
+
+async function loadHealth() {
+  const res = await fetch('/api/challenges/health');
+  if (res.ok) {
+    const data = await res.json();
+    document.getElementById('healthFill').style.width = data.health + '%';
+    document.getElementById('healthText').textContent = data.health + '% GLOBAL NETWORK INTEGRITY';
+    if (data.health < 30) {
+      document.getElementById('healthFill').style.background = 'linear-gradient(90deg, rgba(255,51,102,0.3) 0%, var(--danger) 100%)';
+      document.getElementById('healthFill').style.boxShadow = '0 0 20px rgba(255,51,102,0.4)';
+    } else if (data.health < 70) {
+      document.getElementById('healthFill').style.background = 'linear-gradient(90deg, rgba(255,170,0,0.3) 0%, #ff9900 100%)';
+      document.getElementById('healthFill').style.boxShadow = '0 0 20px rgba(255,153,0,0.4)';
+    }
+  }
+}
+
+async function loadChallenges() {
+  const res = await fetch('/api/challenges');
+  const data = await res.json();
+  
+  if (res.status === 403 && data.upcoming) {
+    // Show Upcoming Overlay
+    document.querySelector('main').innerHTML = `
+      <div id="upcomingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 14, 20, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50;">
+        <h1 style="font-size: 60px; color: var(--primary); text-shadow: 0 0 20px var(--primary-glow); letter-spacing: 10px;">EVENT SCHEDULED</h1>
+        <p style="color: var(--text-muted); font-size: 20px; font-family: var(--mono); margin-top: 20px;">TARGET SERVERS WILL BECOME AVAILABLE SOON</p>
+      </div>
+    `;
+    return;
+  }
+  
+  if (!res.ok) return;
+
+  challenges = data;
+  renderCategories();
+  renderGrid();
+  loadHealth();
+  loadTrendingHeat();
+}
+
+async function loadTrendingHeat() {
+  try {
+    const res = await fetch('/api/spectator/heat');
+    if (!res.ok) return;
+    const heatData = await res.json();
+    
+    // Sort by attempts descending and take top 3
+    const trending = [...heatData].sort((a, b) => b.attempts - a.attempts).slice(0, 3);
+    // Sort by solves descending and take top 3
+    const mostSolved = [...heatData].sort((a, b) => b.solves - a.solves).slice(0, 3);
+    
+    const container = document.getElementById('liveWidgetsContainer');
+    const trendingGrid = document.getElementById('trendingWidgetGrid');
+    const solvedGrid = document.getElementById('mostSolvedWidgetGrid');
+    
+    if ((trending.length === 0 || trending[0].attempts === 0) && (mostSolved.length === 0 || mostSolved[0].solves === 0)) {
+      container.style.display = 'none';
+      return;
+    }
+    
+    container.style.display = 'block';
+    trendingGrid.innerHTML = '';
+    solvedGrid.innerHTML = '';
+    
+    const renderCard = (c, targetGrid, isSolvedWidget) => {
+      const userChallenge = challenges.find(x => x.id === c.id);
+      const isSolved = userChallenge && userChallenge.solved;
+      let isFogged = false;
+      if (userChallenge && userChallenge.requires) {
+        const req = challenges.find(x => x.id === userChallenge.requires);
+        if (req && !req.solved) isFogged = true;
+      }
+      
+      const card = document.createElement('div');
+      card.className = 'challenge-card ' + (isSolved ? 'solved' : '') + (isFogged ? 'fogged' : '');
+      card.style.minHeight = 'auto';
+      card.style.padding = '16px';
+      
+      if (isSolvedWidget) {
+        card.style.borderColor = 'rgba(0, 255, 102, 0.3)';
+        card.style.background = 'rgba(0, 255, 102, 0.05)';
+      } else {
+        card.style.borderColor = 'rgba(255, 51, 102, 0.3)';
+        card.style.background = 'rgba(255, 51, 102, 0.05)';
+      }
+      
+      if (isSolved) {
+        card.style.borderColor = 'rgba(0, 255, 102, 0.4)';
+        card.style.background = 'rgba(0, 255, 102, 0.05)';
+      }
+      
+      const glowColor = isSolvedWidget ? 'rgba(0, 255, 102, 0.15)' : 'rgba(255, 51, 102, 0.15)';
+      const accentColor = isSolvedWidget ? 'var(--success)' : 'var(--danger)';
+      
+      card.innerHTML = `
+        <div class="card-glow" style="background: radial-gradient(circle, ${glowColor} 0%, transparent 70%);"></div>
+        <div class="card-content" style="pointer-events: none;">
+          <div style="font-family: var(--mono); font-size: 10px; color: ${accentColor}; margin-bottom: 8px;">${c.attempts} ATTEMPTS / ${c.solves} SOLVES</div>
+          <div style="font-size: 15px; font-weight: 600; color: #fff; margin-bottom: 0;">${escapeHtml(c.title)}</div>
+        </div>
+      `;
+      
+      if (!isFogged) {
+        card.onclick = () => openChallenge(c.id);
+        card.style.cursor = 'pointer';
+        
+        card.addEventListener('mousemove', (e) => {
+          const rect = card.getBoundingClientRect();
+          const x = e.clientX - rect.left;
+          const y = e.clientY - rect.top;
+          const glow = card.querySelector('.card-glow');
+          glow.style.left = x + 'px';
+          glow.style.top = y + 'px';
+        });
+      }
+      
+      targetGrid.appendChild(card);
+    };
+
+    trending.forEach(c => renderCard(c, trendingGrid, false));
+    mostSolved.forEach(c => renderCard(c, solvedGrid, true));
+  } catch(e) {}
+}
+
+setInterval(loadTrendingHeat, 10000);
+
+
+function renderCategories() {
+  const cats = ['All', ...new Set(challenges.map(c => c.category || 'Uncategorized'))];
+  const tabs = document.getElementById('categoryTabs');
+  tabs.innerHTML = '';
+  cats.forEach(cat => {
+    const btn = document.createElement('button');
+    btn.textContent = cat;
+    if (cat === activeCategory) btn.classList.add('active');
+    btn.onclick = () => { activeCategory = cat; renderCategories(); renderGrid(); };
+    tabs.appendChild(btn);
+  });
+}
+
+function renderGrid() {
+  const grid = document.getElementById('grid');
+  grid.innerHTML = '';
+  
+  const filtered = activeCategory === 'All' ? challenges : challenges.filter(c => (c.category || 'Uncategorized') === activeCategory);
+  if (filtered.length === 0) {
+    grid.innerHTML = '<p>No active targets detected in this sector.</p>';
+    return;
+  }
+
+  // Sort by points ascending
+  filtered.sort((a,b) => a.points - b.points);
+
+  filtered.forEach(c => {
+    let locked = false;
+    if (c.requires) {
+      const req = challenges.find(x => x.id === c.requires);
+      if (req && !req.solved) locked = true;
+    }
+
+    let displayPoints = c.points;
+    if (anomalyState && anomalyState.categoryId === c.category_id && anomalyState.endTime > Date.now()) {
+      displayPoints = Math.floor(c.points * anomalyState.multiplier);
+    }
+
+    const diffBadge = locked ? 'locked' : (c.difficulty || 'medium');
+
+    let claimBadge = '';
+    if (c.claimed_by) {
+      claimBadge = `<div style="position:absolute; top: 10px; right: 10px; font-size: 9px; font-family: var(--mono); color: var(--danger); border: 1px solid var(--danger); padding: 2px 4px; border-radius: 4px; z-index: 5; background: rgba(0,0,0,0.5);">🔒 ${escapeHtml(c.claimed_by)}</div>`;
+    }
+
+    const card = document.createElement('div');
+    card.id = 'node-' + c.id;
+    card.className = 'challenge-card ' + (c.difficulty || 'medium') + (c.solved ? ' solved' : '') + (locked ? ' fogged' : '');
+    
+    card.innerHTML = `
+      ${claimBadge}
+      <div class="card-glow"></div>
+      <div class="card-content">
+        <div class="card-cat">${escapeHtml(c.category || 'Uncategorized')}</div>
+        <div class="card-title">${escapeHtml(c.title)}</div>
+        <div class="card-footer">
+          <span class="badge-${diffBadge}" style="font-size:10px; padding:3px 8px; border-radius:4px; border:1px solid currentColor;">${diffBadge.toUpperCase()}</span>
+          <span class="card-points">${displayPoints} pts</span>
+        </div>
+      </div>
+    `;
+
+    if (!locked) {
+      card.onclick = () => openChallenge(c.id);
+      
+      // 3D Tilt & Glow Effect
+      card.addEventListener('mousemove', (e) => {
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+        
+        // Move glow
+        const glow = card.querySelector('.card-glow');
+        glow.style.left = x + 'px';
+        glow.style.top = y + 'px';
+        
+        // Calculate tilt
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+        const rotateX = ((y - centerY) / centerY) * -8; // max 8 deg tilt
+        const rotateY = ((x - centerX) / centerX) * 8;
+        
+        card.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+      });
+      
+      card.addEventListener('mouseleave', () => {
+        card.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+      });
+    }
+
+    grid.appendChild(card);
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+function openChallenge(id) {
+  const c = challenges.find(x => x.id === id);
+  if (!c) return;
+  
+  const hintsHtml = (c.hints || []).map(h => `
+    <div class="hint-box">
+      <div>Hint (-${h.cost} pts)${h.revealed ? '' : ` — <a href="#" class="reveal-link" data-hint-id="${h.id}">decrypt</a>`}</div>
+      ${h.revealed ? `<div class="hint-text">${escapeHtml(h.text)}</div>` : ''}
+    </div>
+  `).join('');
+
+    let lockHtml = '';
+    if (currentTeam && currentTeam.operative_type === 'Syndicate') {
+      if (c.claimed_by) {
+        lockHtml = `
+          <div style="background: rgba(255, 51, 102, 0.1); border: 1px dashed var(--danger); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+            <div style="font-family: var(--mono); color: var(--danger); font-size: 13px; margin-bottom: 8px;">🔒 LOCKED BY: ${escapeHtml(c.claimed_by)}</div>
+            <button class="btn-ghost btn-sm unlock-btn" data-id="${c.id}" style="font-size: 10px; color: var(--danger); border-color: var(--danger);">Release Lock</button>
+          </div>
+        `;
+      } else {
+        const rosterOpts = (currentTeam.roster || []).map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+        lockHtml = `
+          <div style="background: rgba(0, 210, 255, 0.1); border: 1px dashed var(--primary); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+            <div style="font-family: var(--mono); color: var(--primary); font-size: 13px; margin-bottom: 8px;">UNLOCKED TARGET</div>
+            <select id="lockAliasSelect" style="background: #111; color: var(--primary); border: 1px solid var(--primary); font-family: var(--mono); font-size: 12px; margin-right: 8px;">
+              ${rosterOpts}
+            </select>
+            <button class="btn-ghost btn-sm lock-btn" data-id="${c.id}" style="font-size: 10px; border-color: var(--primary);">Lock Target</button>
+          </div>
+        `;
+      }
+    }
+
+    document.getElementById('modalContent').innerHTML = `
+      <button class="modal-close" id="closeModal">×</button>
+      <div class="eyebrow">${escapeHtml(c.category || 'Uncategorized')}</div>
+      <h2 style="margin-top:6px;">${escapeHtml(c.title)}</h2>
+      <div class="markdown-body" style="margin-bottom: 20px;">${marked.parse(c.description || '')}</div>
+      ${lockHtml}
+      ${c.link ? `<p><a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Access Target →</a></p>` : ''}
+    ${c.docker_image && !c.solved ? `
+      <div id="sandbox-area" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
+        <h4 style="margin:0 0 10px 0; color:var(--primary); font-family:var(--mono);">[DOCKER SANDBOX]</h4>
+        <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px;">This challenge requires an isolated environment. Deploy a personal container instance to proceed.</p>
+        <button id="deployBtn" class="btn-primary" style="width:100%; background:transparent; border:1px solid var(--primary); color:var(--primary);">Deploy Instance</button>
+        <div id="deployStatus" class="hidden" style="margin-top:15px; font-family:var(--mono); font-size:12px;">
+           <div>Provisioning Container...</div>
+           <div style="width:100%; background:#222; height:4px; margin-top:5px; border-radius:2px; overflow:hidden;">
+             <div id="deployProgress" style="width:0%; background:var(--primary); height:100%; transition: width 0.1s linear;"></div>
+           </div>
+        </div>
+        <div id="deployResult" class="hidden" style="margin-top:15px; font-family:var(--mono); color:var(--success); background:rgba(0,255,102,0.1); border:1px dashed var(--success); padding:10px;"></div>
+      </div>
+    ` : ''}
+    ${hintsHtml}
+    <div id="submitArea" style="margin-top:24px;">
+      ${c.solved
+        ? `<div class="alert alert-success" style="justify-content:center; font-family:var(--mono);">✓ TARGET COMPROMISED</div>`
+        : `
+          <label for="flagInput">Inject Flag</label>
+          <input id="flagInput" placeholder="flag{...}" style="font-family:var(--mono);">
+          <button id="submitFlagBtn" class="btn-primary" style="width:100%;">Execute</button>
+          <div id="submitMsg" style="margin-top:10px;"></div>
+        `
+      }
+    </div>
+  `;
+
+  document.getElementById('modalBackdrop').classList.remove('hidden');
+  document.getElementById('closeModal').onclick = closeModal;
+
+  document.querySelectorAll('.reveal-link').forEach(link => {
+    link.onclick = async (e) => {
+      e.preventDefault();
+      const hintId = link.dataset.hintId;
+      await fetch(`/api/challenges/hints/${hintId}/reveal`, { method: 'POST' });
+      await loadChallenges();
+      openChallenge(id);
+    };
+  });
+
+  const lockBtn = document.querySelector('.lock-btn');
+  if (lockBtn) {
+    lockBtn.onclick = () => {
+      const alias = document.getElementById('lockAliasSelect').value;
+      if (alias) {
+        socket.emit('challenge:claim', { challengeId: id, alias });
+        c.claimed_by = alias;
+        openChallenge(id);
+        renderGrid();
+      }
+    };
+  }
+
+  const unlockBtn = document.querySelector('.unlock-btn');
+  if (unlockBtn) {
+    unlockBtn.onclick = () => {
+      socket.emit('challenge:unclaim', { challengeId: id });
+      c.claimed_by = null;
+      openChallenge(id);
+      renderGrid();
+    };
+  }
+
+  const deployBtn = document.getElementById('deployBtn');
+  if (deployBtn) {
+    deployBtn.onclick = async () => {
+      deployBtn.disabled = true;
+      document.getElementById('deployStatus').classList.remove('hidden');
+      const resEl = document.getElementById('deployResult');
+      resEl.classList.add('hidden');
+      const prog = document.getElementById('deployProgress');
+      prog.style.width = '100%';
+      prog.style.transition = 'width 2s ease';
+
+      try {
+        const res = await fetch(`/api/challenges/${id}/deploy`, { method: 'POST' });
+        const data = await res.json();
+        
+        document.getElementById('deployStatus').classList.add('hidden');
+        resEl.classList.remove('hidden');
+        
+        if (res.ok) {
+          resEl.style.color = 'var(--success)';
+          resEl.style.borderColor = 'var(--success)';
+          resEl.style.background = 'rgba(0,255,102,0.1)';
+          resEl.innerHTML = `Instance Deployed.<br/><br/>Target URL: <a href="${data.proxyUrl}" target="_blank" style="color:var(--primary);">${data.proxyUrl}</a><br/>Destroys in: 30:00`;
+        } else {
+          resEl.style.color = 'var(--danger)';
+          resEl.style.borderColor = 'var(--danger)';
+          resEl.style.background = 'rgba(255,51,102,0.1)';
+          resEl.innerHTML = `Deployment Failed:<br/><br/><b>${data.error || 'Unknown error.'}</b>`;
+          deployBtn.disabled = false;
+        }
+      } catch (err) {
+        document.getElementById('deployStatus').classList.add('hidden');
+        resEl.classList.remove('hidden');
+        resEl.style.color = 'var(--danger)';
+        resEl.style.borderColor = 'var(--danger)';
+        resEl.style.background = 'rgba(255,51,102,0.1)';
+        resEl.innerHTML = `Network error contacting server.`;
+        deployBtn.disabled = false;
+      }
+    };
+  }
+
+  const submitBtn = document.getElementById('submitFlagBtn');
+  if (submitBtn) {
+    submitBtn.onclick = async () => {
+      const flagInput = document.getElementById('flagInput');
+      const flag = flagInput.value.trim();
+      const msg = document.getElementById('submitMsg');
+
+      if (!/^(flag|FLAG)\{.*\}$/.test(flag)) {
+        flagInput.style.borderColor = 'red';
+        flagInput.style.boxShadow = '0 0 10px red';
+        flagInput.style.animation = 'shake 0.3s';
+        setTimeout(() => { flagInput.style.animation = ''; }, 300);
+        msg.innerHTML = `<div style="color:var(--danger); font-family:var(--mono);">Invalid format: Flags must match flag{...}</div>`;
+        return;
+      }
+      flagInput.style.borderColor = '';
+      flagInput.style.boxShadow = '';
+
+      submitBtn.disabled = true;
+      const res = await fetch(`/api/challenges/${id}/submit`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ flag })
+      });
+      const data = await res.json();
+      if (res.ok && data.correct) {
+        msg.innerHTML = `<div style="color:var(--success); font-family:var(--mono);">Access Granted. +${data.points} pts</div>`;
+        await loadChallenges();
+        setTimeout(closeModal, 1000);
+      } else {
+        msg.innerHTML = `<div style="color:var(--danger); font-family:var(--mono); animation: shake 0.3s;">Access Denied.</div>`;
+        submitBtn.disabled = false;
+      }
+    };
+  }
+}
+
+function closeModal() { document.getElementById('modalBackdrop').classList.add('hidden'); }
+document.getElementById('modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'modalBackdrop') closeModal(); });
+
+// Profile Modal / Fingerprint Chart
+document.getElementById('profileBtn').onclick = async () => {
+  document.getElementById('profileModal').classList.remove('hidden');
+  const res = await fetch('/api/auth/profile');
+  const data = await res.json();
+  
+  const labels = data.map(d => d.category);
+  
+  // Generate Tree Branches
+  const treeBranches = document.getElementById('treeBranches');
+  treeBranches.innerHTML = '';
+  
+  labels.forEach(label => {
+    if(label === 'Unknown' || label === 'null' || !label) return;
+    
+    const badge = document.createElement('div');
+    badge.className = 'challenge-card';
+    badge.style.minHeight = 'auto';
+    badge.style.padding = '8px 16px';
+    badge.style.borderRadius = '8px';
+    badge.style.cursor = 'default';
+    badge.style.display = 'inline-block';
+    
+    badge.innerHTML = `
+      <div class="card-glow" style="background: radial-gradient(circle, rgba(0, 210, 255, 0.4) 0%, transparent 70%);"></div>
+      <span style="position: relative; z-index: 2; font-family: var(--mono); font-weight: bold; background: linear-gradient(90deg, #00d2ff, #00ff66); -webkit-background-clip: text; -webkit-text-fill-color: transparent;">${label}</span>
+    `;
+    
+    badge.addEventListener('mousemove', (e) => {
+      const rect = badge.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const glow = badge.querySelector('.card-glow');
+      if(glow) {
+        glow.style.left = x + 'px';
+        glow.style.top = y + 'px';
+      }
+      const centerX = rect.width / 2;
+      const centerY = rect.height / 2;
+      const rotateX = ((y - centerY) / centerY) * -20;
+      const rotateY = ((x - centerX) / centerX) * 20;
+      badge.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.1)`;
+      badge.style.borderColor = 'rgba(0, 210, 255, 0.6)';
+    });
+    
+    badge.addEventListener('mouseleave', () => {
+      badge.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+      badge.style.borderColor = 'var(--border-color)';
+    });
+    
+    treeBranches.appendChild(badge);
+  });
+  
+  // Reset agent eval
+  document.getElementById('agentEvalContainer').classList.add('hidden');
+  const evalBtn = document.getElementById('agentEvalBtn');
+  evalBtn.disabled = false;
+  evalBtn.textContent = 'Initialize Agent Evaluation';
+};
+
+document.getElementById('agentEvalBtn').onclick = async () => {
+  const container = document.getElementById('agentEvalContainer');
+  const textDiv = document.getElementById('agentEvalText');
+  const btn = document.getElementById('agentEvalBtn');
+  
+  container.classList.remove('hidden');
+  btn.disabled = true;
+  btn.textContent = 'Agent is analyzing...';
+  textDiv.innerHTML = 'Connecting to Neural Network...<br/>Analyzing platform telemetry...<br/>';
+  
+  try {
+    const res = await fetch('/api/auth/analysis');
+    const data = await res.json();
+    
+    let report = '<br/><b>[ ANALYSIS COMPLETE ]</b><br/><br/>';
+    
+    report += '<b><span style="color:#00D2FF;">> STRONG DOMAINS</span></b><br/>';
+    if (data.strong.length > 0) {
+      report += `Your top performing categories are: ${data.strong.slice(0,3).join(', ')}. Keep exploiting these strengths.<br/>`;
+    } else {
+      report += `Insufficient solve data to determine strong domains.<br/>`;
+    }
+    
+    report += '<br/><b><span style="color:var(--danger);">> KNOWLEDGE GAPS / SKIPS</span></b><br/>';
+    if (data.gaps.length > 0) {
+      report += `You have completely avoided these categories: ${data.gaps.join(', ')}. This indicates a lack of knowledge or confidence in these specific areas.<br/>`;
+    } else {
+      report += `No significant knowledge gaps detected. You are engaging with all sectors.<br/>`;
+    }
+    
+    report += '<br/><b><span style="color:var(--amber);">> NEAR-COMPLETION (STUCK)</span></b><br/>';
+    if (data.stuck.length > 0) {
+      report += `I noticed significant effort (multiple failed payloads) on: ${data.stuck.join(', ')}. You have the concepts down, you are just missing the final piece to break it. Don't give up.<br/>`;
+    } else {
+      report += `No stuck targets detected. You either solve quickly or haven't pushed hard enough on difficult targets.<br/>`;
+    }
+    
+    // Typewriter effect
+    textDiv.innerHTML = '';
+    let i = 0;
+    const speed = 10;
+    
+    function typeWriter() {
+      if (i < report.length) {
+        if (report.substring(i, i+5) === '<br/>') {
+          textDiv.innerHTML += '<br/>';
+          i += 5;
+        } else if (report.substring(i, i+3) === '<b>' || report.substring(i, i+4) === '</b>') {
+           const end = report.indexOf('>', i);
+           textDiv.innerHTML += report.substring(i, end+1);
+           i = end+1;
+        } else if (report.substring(i, i+5) === '<span') {
+           const end = report.indexOf('>', i);
+           textDiv.innerHTML += report.substring(i, end+1);
+           i = end+1;
+        } else if (report.substring(i, i+7) === '</span>') {
+           textDiv.innerHTML += '</span>';
+           i += 7;
+        } else {
+          textDiv.innerHTML += report.charAt(i);
+          i++;
+        }
+        setTimeout(typeWriter, speed);
+      } else {
+        btn.textContent = 'Analysis Complete';
+      }
+    }
+    typeWriter();
+    
+  } catch (e) {
+    textDiv.innerHTML += '<br/><span style="color:red;">Error connecting to Analyst Bot.</span>';
+    btn.disabled = false;
+    btn.textContent = 'Initialize Agent Evaluation';
+  }
+};
+
+const evalCard = document.getElementById('agentEvalContainer');
+if (evalCard) {
+  evalCard.addEventListener('mousemove', (e) => {
+    const rect = evalCard.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const glow = evalCard.querySelector('.card-glow');
+    if(glow) {
+      glow.style.left = x + 'px';
+      glow.style.top = y + 'px';
+    }
+    
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -8;
+    const rotateY = ((x - centerX) / centerX) * 8;
+    
+    evalCard.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.02)`;
+  });
+  
+  evalCard.addEventListener('mouseleave', () => {
+    evalCard.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+  });
+}
+
+const userCard = document.getElementById('usernameCard');
+if (userCard) {
+  userCard.addEventListener('mousemove', (e) => {
+    const rect = userCard.getBoundingClientRect();
+    const x = e.clientX - rect.left;
+    const y = e.clientY - rect.top;
+    
+    const glow = userCard.querySelector('.card-glow');
+    if(glow) {
+      glow.style.left = x + 'px';
+      glow.style.top = y + 'px';
+      glow.style.background = 'radial-gradient(circle, rgba(255, 0, 170, 0.3) 0%, transparent 70%)';
+    }
+    
+    const centerX = rect.width / 2;
+    const centerY = rect.height / 2;
+    const rotateX = ((y - centerY) / centerY) * -15; // More pronounced tilt for small card
+    const rotateY = ((x - centerX) / centerX) * 15;
+    
+    userCard.style.transform = `perspective(1000px) rotateX(${rotateX}deg) rotateY(${rotateY}deg) scale(1.05)`;
+    userCard.style.borderColor = 'rgba(255, 0, 170, 0.4)';
+  });
+  
+  userCard.addEventListener('mouseleave', () => {
+    userCard.style.transform = 'perspective(1000px) rotateX(0deg) rotateY(0deg) scale(1)';
+    userCard.style.borderColor = 'var(--border-color)';
+    const glow = userCard.querySelector('.card-glow');
+    if(glow) glow.style.background = 'radial-gradient(circle, rgba(0, 210, 255, 0.15) 0%, transparent 70%)';
+  });
+}
+
+document.getElementById('logoutBtn').onclick = async () => {
+  await fetch('/api/auth/logout', { method: 'POST' });
+  window.location.href = '/';
+};
+
+let currentTeam = null;
+fetch('/api/auth/me').then(r => r.json()).then(d => {
+  if (!d.team) { window.location.href = '/'; return; }
+  currentTeam = d.team;
+  document.getElementById('profileTeamName').textContent = d.team.name;
+  
+  if (d.team.operative_type === 'Syndicate') {
+    const synSec = document.getElementById('syndicateSection');
+    if (synSec) {
+      synSec.classList.remove('hidden');
+      const rl = document.getElementById('rosterList');
+      rl.innerHTML = '';
+      for (let i = 0; i < d.team.members_count; i++) {
+        const val = d.team.roster[i] || '';
+        rl.innerHTML += `<input type="text" class="roster-input" placeholder="Operative ${i+1} Alias" value="${escapeHtml(val)}" style="font-family:var(--mono);">`;
+      }
+    }
+  }
+});
+
+const assembleBtn = document.getElementById('assembleBtn');
+if (assembleBtn) {
+  assembleBtn.onclick = () => {
+    const msg = document.getElementById('assembleMsg');
+    const pass = sessionStorage.getItem('teamPass') || '[Password]';
+    msg.innerHTML = `Share these credentials with your team:<br><br><b>Team:</b> ${currentTeam.name}<br><b>Password:</b> ${pass}`;
+    msg.classList.remove('hidden');
+  };
+}
+
+const saveRosterBtn = document.getElementById('saveRosterBtn');
+if (saveRosterBtn) {
+  saveRosterBtn.onclick = async () => {
+    const inputs = document.querySelectorAll('.roster-input');
+    const roster = Array.from(inputs).map(inp => inp.value.trim());
+    
+    saveRosterBtn.disabled = true;
+    const res = await fetch('/api/auth/roster', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ roster })
+    });
+    saveRosterBtn.disabled = false;
+    
+    const msg = document.getElementById('rosterMsg');
+    if (res.ok) {
+      msg.style.color = 'var(--success)';
+      msg.textContent = 'Roster updated successfully.';
+    } else {
+      msg.style.color = 'var(--danger)';
+      msg.textContent = 'Failed to update roster.';
+    }
+    setTimeout(() => { msg.textContent = ''; }, 3000);
+  };
+}
+
+loadChallenges();
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  if (d.event_name) {
+    document.getElementById('brandName').textContent = d.event_name.toUpperCase() + ' PLATFORM';
+    document.title = 'Challenges — ' + d.event_name;
+  }
+  if (d.headline && d.headline.trim() !== '') {
+    const hlCard = document.getElementById('headlineCard');
+    hlCard.classList.remove('hidden');
+    document.getElementById('headlineText').textContent = d.headline;
+    
+    hlCard.addEventListener('mousemove', (e) => {
+      const rect = hlCard.getBoundingClientRect();
+      const x = e.clientX - rect.left;
+      const y = e.clientY - rect.top;
+      const glow = hlCard.querySelector('.card-glow');
+      if (glow) {
+        glow.style.left = x + 'px';
+        glow.style.top = y + 'px';
+      }
+    });
+  }
+});
+
+const socket = io();
+
+function logThreat(msg, color = 'var(--text-main)') {
+  const feed = document.getElementById('threatFeed');
+  if (!feed) return;
+  const line = document.createElement('div');
+  line.style.color = color;
+  const time = new Date().toLocaleTimeString([], {hour12:false});
+  line.textContent = `[${time}] ${msg}`;
+  feed.appendChild(line);
+  feed.scrollTop = feed.scrollHeight;
+}
+
+socket.on('activity', (data) => { 
+  loadChallenges(); 
+  logThreat(`'${data.team}' compromised [${data.challenge}]`, 'var(--danger)');
+  if (data.streak >= 3) {
+    const hl = document.getElementById('headlineText');
+    if (hl) {
+      hl.classList.add('glitch-text', 'on-fire');
+      setTimeout(() => hl.classList.remove('glitch-text', 'on-fire'), 5000);
+    }
+  }
+  if (data.anomalySurge && window.playAlertSound) window.playAlertSound();
+});
+
+socket.on('first_blood', (data) => {
+  logThreat(`FIRST BLOOD: '${data.team}' on [${data.challenge}]`, 'var(--warning)');
+  if (window.playAlertSound) window.playAlertSound();
+});
+
+socket.on('claim:update', (data) => {
+  const chal = challenges.find(x => x.id === data.challengeId);
+  if (chal) {
+    chal.claimed_by = data.alias;
+    renderGrid();
+    const modalTitle = document.querySelector('.modal h2');
+    if (modalTitle && modalTitle.textContent === chal.title) {
+      openChallenge(chal.id);
+    }
+  }
+});
+
+let anomalyState = null;
+let anomalyInterval = null;
+
+socket.on('anomaly:start', (anomaly) => { anomalyState = anomaly; renderAnomaly(); renderGrid(); });
+socket.on('anomaly:end', () => { anomalyState = null; renderAnomaly(); renderGrid(); });
+fetch('/api/challenges/anomaly/current').then(r=>r.json()).then(data => {
+  if (data.categoryId) { anomalyState = data; renderAnomaly(); renderGrid(); }
+});
+
+function renderAnomaly() {
+  const banner = document.getElementById('anomalyBanner');
+  clearInterval(anomalyInterval);
+  if (!anomalyState) { banner.classList.add('hidden'); return; }
+  
+  banner.classList.remove('hidden');
+  document.getElementById('anomalyDesc').textContent = `${anomalyState.multiplier}x points for [${anomalyState.categoryName}]`;
+  
+  const updateTimer = () => {
+    const remaining = anomalyState.endTime - Date.now();
+    if (remaining <= 0) {
+      banner.classList.add('hidden');
+      clearInterval(anomalyInterval);
+      anomalyState = null;
+      renderGrid();
+    } else {
+      const m = Math.floor(remaining / 60000);
+      const s = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
+      document.getElementById('anomalyTimer').textContent = `${m}:${s}`;
+    }
+  };
+  updateTimer();
+  anomalyInterval = setInterval(updateTimer, 1000);
+}
+</script>
+<script src="/js/chart.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/sfx.js"></script>
+<script src="/js/terminal.js"></script>
+</body>
+</html>

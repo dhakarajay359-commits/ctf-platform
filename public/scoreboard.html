@@ -1,0 +1,335 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Scoreboard — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<script src="/js/notifications.js"></script>`n<script src="/js/timer.js"></script>`n<script src="/js/chat.js"></script>`n<script src="/js/anticheat.js"></script>`n<link rel="stylesheet" href="/css/terminal.css">`n<script src="/js/terminal.js"></script>`n</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <a href="/challenges.html">Challenges</a>
+    <a href="/scoreboard.html" class="active">Scoreboard</a>
+    <a href="/payloads.html">Payloads</a>
+    <a href="/campaign.html">Campaign</a>
+  </div>
+</div>
+
+<main>
+  <span class="eyebrow">Live standings</span>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
+    <div style="display:flex; align-items:center; gap: 16px;">
+      <h1 style="margin:0;">Scoreboard</h1>
+      <div style="display:flex; gap: 10px; margin-left: 20px;">
+        <button id="filterAll" class="btn-ghost active">All</button>
+        <button id="filterLoneWolves" class="btn-ghost">Lone Wolves</button>
+        <button id="filterSyndicates" class="btn-ghost">Syndicates</button>
+      </div>
+      <button id="downloadReportBtn" class="btn-ghost btn-sm hidden">↓ Skills Report</button>
+    </div>
+    <span class="live-tag"><span class="dot"></span> Live</span>
+  </div>
+
+  <div class="panel" style="margin-bottom: 24px; display: none;" id="graphPanel">
+    <canvas id="top10Graph" style="width: 100%; height: 350px;"></canvas>
+  </div>
+
+  <div class="panel" style="padding: 0; overflow-x: auto;">
+    <table class="scoreboard-table">
+      <thead>
+        <tr>
+          <th>Rank</th>
+          <th>Team</th>
+          <th>Solves</th>
+          <th>Score</th>
+          <th>Last solve</th>
+        </tr>
+      </thead>
+      <tbody id="rows"></tbody>
+    </table>
+  </div>
+
+  <p id="emptyMsg" style="margin-top:16px;" class="hidden">No teams have scored yet — be the first.</p>
+
+  <div id="activityLog" style="margin-top: 32px;">
+    <span class="eyebrow">Activity feed</span>
+    <div id="activityRows" style="font-family: var(--mono); font-size: 13px; color: var(--text-muted);"></div>
+  </div>
+</main>
+
+<footer class="foot">SIGNAL &gt; NOISE</footer>
+
+<!-- Hidden canvas for rendering radar chart report -->
+<canvas id="reportCanvas" width="800" height="600" style="display: none;"></canvas>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+let myTeamId = null;
+let currentFilter = 'all';
+let globalScoreboardRows = [];
+
+document.getElementById('filterAll').onclick = (e) => setFilter('all', e.target);
+document.getElementById('filterLoneWolves').onclick = (e) => setFilter('Lone Wolf', e.target);
+document.getElementById('filterSyndicates').onclick = (e) => setFilter('Syndicate', e.target);
+
+function setFilter(filter, btn) {
+  currentFilter = filter;
+  ['filterAll', 'filterLoneWolves', 'filterSyndicates'].forEach(id => document.getElementById(id).classList.remove('active'));
+  btn.classList.add('active');
+  if (globalScoreboardRows.length > 0) renderScoreboard(globalScoreboardRows);
+}
+// Check if user is logged in
+fetch('/api/auth/me').then(r => r.json()).then(d => {
+  if (d.team) {
+    myTeamId = d.team.id;
+    document.getElementById('downloadReportBtn').classList.remove('hidden');
+  }
+});
+function rankClass(rank) {
+  if (rank === 1) return 'top1';
+  if (rank === 2) return 'top2';
+  if (rank === 3) return 'top3';
+  return '';
+}
+
+function timeAgo(iso) {
+  if (!iso) return '—';
+  const diff = (Date.now() - new Date(iso + 'Z').getTime()) / 1000;
+  if (diff < 60) return `${Math.floor(diff)}s ago`;
+  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
+  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
+  return `${Math.floor(diff / 86400)}d ago`;
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+function renderScoreboard(rows, flashTeamId) {
+  globalScoreboardRows = rows;
+  let displayRows = rows;
+  if (currentFilter !== 'all') {
+    displayRows = rows.filter(r => r.operativeType === currentFilter);
+  }
+  displayRows = displayRows.map((r, i) => ({ ...r, displayRank: i + 1 }));
+
+  const tbody = document.getElementById('rows');
+  document.getElementById('emptyMsg').classList.toggle('hidden', displayRows.length === 0);
+  tbody.innerHTML = displayRows.map(r => {
+    let typeBadge = '';
+    if (r.operativeType === 'Lone Wolf') {
+      typeBadge = `<span style="margin-left: 8px; font-size: 11px; font-family: var(--mono); color: var(--primary); border: 1px solid var(--primary); padding: 2px 6px; border-radius: 4px;">LONE WOLF</span>`;
+    } else {
+      typeBadge = `<span style="margin-left: 8px; font-size: 11px; font-family: var(--mono); color: var(--amber); border: 1px solid var(--amber); padding: 2px 6px; border-radius: 4px;">SYNDICATE (${r.membersCount})</span>`;
+    }
+    
+    return `
+    <tr class="${r.teamId === flashTeamId ? 'row-flash' : ''}">
+      <td><span class="rank-badge ${rankClass(r.displayRank)}">${r.displayRank}</span></td>
+      <td>
+        ${escapeHtml(r.team)}
+        ${typeBadge}
+        ${r.badges && r.badges.length > 0 ? `<span style="margin-left: 8px; font-size: 1.1em;">${r.badges.join(' ')}</span>` : ''}
+      </td>
+      <td>${r.solves}</td>
+      <td class="score-cell">${r.score}</td>
+      <td>${timeAgo(r.lastSolve)}</td>
+    </tr>
+  `}).join('');
+}
+
+const activityRows = document.getElementById('activityRows');
+function pushActivity(entry) {
+  const line = document.createElement('div');
+  line.style.padding = '4px 0';
+  const t = new Date(entry.at).toLocaleTimeString();
+  line.innerHTML = `<span style="color:var(--text-muted)">[${t}]</span> <span style="color:var(--primary)">${escapeHtml(entry.team)}</span> solved <span style="color:var(--text-main)">${escapeHtml(entry.challenge)}</span> <span style="color:var(--success)">+${entry.points}</span>`;
+  activityRows.prepend(line);
+  while (activityRows.children.length > 12) activityRows.removeChild(activityRows.lastChild);
+}
+
+const socket = io();
+socket.on('scoreboard:data', (rows) => {
+  renderScoreboard(rows);
+  renderGraph();
+});
+socket.on('activity', (entry) => {
+  pushActivity(entry);
+  socket.emit('scoreboard:request');
+});
+
+// initial load
+fetch('/api/scoreboard').then(r => r.json()).then(rows => {
+  renderScoreboard(rows);
+  renderGraph();
+});
+
+// Top 10 Graph Logic
+let top10Chart = null;
+
+async function renderGraph() {
+  const res = await fetch('/api/scoreboard/graph');
+  if (!res.ok) return;
+  const datasetsObj = await res.json();
+  
+  const teamIds = Object.keys(datasetsObj);
+  if (teamIds.length === 0) {
+    document.getElementById('graphPanel').style.display = 'none';
+    return;
+  }
+  
+  document.getElementById('graphPanel').style.display = 'block';
+
+  // Standard colors
+  const colors = [
+    '#58a6ff', '#2ea043', '#f85149', '#d29922', '#bc8cff',
+    '#3fb950', '#a371f7', '#d29922', '#f0883e', '#e3b341'
+  ];
+
+  const datasets = teamIds.map((id, index) => {
+    const d = datasetsObj[id];
+    return {
+      label: d.label,
+      data: d.data,
+      borderColor: colors[index % colors.length],
+      backgroundColor: colors[index % colors.length],
+      borderWidth: 3,
+      pointRadius: 4,
+      pointHoverRadius: 7,
+      fill: false,
+      tension: 0.4 // Creates a smooth snake-type curve
+    };
+  });
+
+  const ctx = document.getElementById('top10Graph').getContext('2d');
+  
+  if (top10Chart) {
+    top10Chart.data.datasets = datasets;
+    top10Chart.update();
+  } else {
+    top10Chart = new Chart(ctx, {
+      type: 'line',
+      data: { datasets },
+      options: {
+        responsive: true,
+        maintainAspectRatio: false,
+        interaction: {
+          mode: 'nearest',
+          axis: 'x',
+          intersect: false
+        },
+        plugins: {
+          legend: {
+            position: 'bottom',
+            labels: { color: '#8b949e', font: { family: 'Inter, sans-serif' } }
+          },
+          title: {
+            display: true,
+            text: 'Top 10 Teams Progression',
+            color: '#c9d1d9',
+            font: { family: 'Inter, sans-serif', size: 16, weight: '600' }
+          }
+        },
+        scales: {
+          x: {
+            type: 'linear',
+            ticks: {
+              color: '#8b949e',
+              font: { family: 'monospace', size: 11 },
+              callback: function(value) {
+                return new Date(value).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+              }
+            },
+            grid: { display: false }
+          },
+          y: {
+            beginAtZero: true,
+            ticks: { color: '#8b949e', font: { family: 'monospace', size: 11 } },
+            grid: { display: false }
+          }
+        }
+      }
+    });
+  }
+}
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  document.getElementById('brandName').textContent = d.event_name.toUpperCase();
+  document.title = 'Scoreboard — ' + d.event_name;
+});
+
+// Skills Report Logic
+document.getElementById('downloadReportBtn').onclick = async () => {
+  if (!myTeamId) return;
+  const res = await fetch(`/api/scoreboard/report/${myTeamId}`);
+  if (!res.ok) return alert('Failed to generate report.');
+  
+  const data = await res.json();
+  const ctx = document.getElementById('reportCanvas').getContext('2d');
+  
+  // Fill background
+  ctx.fillStyle = '#0f0f11';
+  ctx.fillRect(0, 0, 800, 600);
+
+  const labels = data.categories.map(c => c.category);
+  const points = data.categories.map(c => c.points);
+
+  new Chart(ctx, {
+    type: 'radar',
+    data: {
+      labels: labels,
+      datasets: [{
+        label: `Points Earned`,
+        data: points,
+        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+        borderColor: 'rgba(16, 185, 129, 1)',
+        pointBackgroundColor: 'rgba(16, 185, 129, 1)',
+        borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive: false,
+      animation: false,
+      plugins: {
+        title: {
+          display: true,
+          text: `Skills Report - ${data.team} (Rank: ${data.rank}, Score: ${data.score})`,
+          color: '#ffffff',
+          font: { size: 24, family: 'monospace' }
+        },
+        legend: { labels: { color: '#ffffff' } }
+      },
+      scales: {
+        r: {
+          ticks: { display: false },
+          grid: { color: 'rgba(255, 255, 255, 0.1)' },
+          angleLines: { color: 'rgba(255, 255, 255, 0.1)' },
+          pointLabels: { color: '#ffffff', font: { size: 16 } }
+        }
+      }
+    }
+  });
+
+  // Wait a tiny bit for render
+  setTimeout(() => {
+    const canvas = document.getElementById('reportCanvas');
+    const url = canvas.toDataURL('image/png');
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `skills-report-${data.team}.png`;
+    a.click();
+    
+    // Clear canvas for next time
+    Chart.getChart(canvas)?.destroy();
+  }, 100);
+};
+</script>
+</body>
+</html>

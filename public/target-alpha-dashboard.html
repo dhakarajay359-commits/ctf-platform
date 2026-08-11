@@ -1,0 +1,197 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniCorp Internal Dashboard</title>
+<style>
+  :root {
+    --corp-blue: #0A369D;
+    --corp-light: #F4F7F6;
+    --corp-text: #333333;
+    --panel-bg: #ffffff;
+  }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--corp-light);
+    color: var(--corp-text);
+  }
+  .navbar {
+    background-color: var(--corp-blue);
+    color: white;
+    padding: 15px 30px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .navbar h1 {
+    margin: 0;
+    font-size: 20px;
+    letter-spacing: 1px;
+  }
+  .user-info {
+    font-size: 14px;
+    opacity: 0.8;
+  }
+  .container {
+    max-width: 1000px;
+    margin: 40px auto;
+    padding: 0 20px;
+  }
+  .panel {
+    background: var(--panel-bg);
+    padding: 30px;
+    border-radius: 4px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.05);
+    margin-bottom: 20px;
+  }
+  .panel h2 {
+    margin-top: 0;
+    color: var(--corp-blue);
+    border-bottom: 1px solid #eee;
+    padding-bottom: 10px;
+    margin-bottom: 20px;
+  }
+  .form-group {
+    margin-bottom: 15px;
+  }
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #555;
+  }
+  input {
+    width: 100%;
+    max-width: 400px;
+    padding: 10px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+  }
+  button {
+    padding: 10px 20px;
+    background-color: var(--corp-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 14px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+  button:hover { background-color: #082A7A; }
+  
+  .terminal {
+    background-color: #1e1e1e;
+    color: #00ff00;
+    font-family: 'Courier New', Courier, monospace;
+    padding: 15px;
+    border-radius: 4px;
+    min-height: 200px;
+    margin-top: 20px;
+    white-space: pre-wrap;
+    overflow-y: auto;
+    max-height: 400px;
+    display: none;
+  }
+
+  /* Glitch Animations */
+  .glitch-active {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    background-color: #000;
+  }
+  .glitch-active * {
+    color: #0f0 !important;
+    border-color: #0f0 !important;
+    background-color: #000 !important;
+    font-family: monospace !important;
+  }
+
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+</style>
+</head>
+<body>
+
+<div class="navbar">
+  <h1>OmniCorp Internal</h1>
+  <div class="user-info">Logged in as: ADMIN (Bypassed)</div>
+</div>
+
+<div class="container">
+  <div class="panel">
+    <h2>Network Diagnostic Tool</h2>
+    <p style="font-size: 14px; color: #666; margin-bottom: 20px;">Use this tool to verify connectivity to internal OmniCorp servers.</p>
+    
+    <form id="pingForm">
+      <div class="form-group">
+        <label for="ipInput">IP Address to Ping</label>
+        <input type="text" id="ipInput" value="127.0.0.1" autocomplete="off">
+      </div>
+      <button type="submit" id="pingBtn">Execute Ping</button>
+    </form>
+
+    <div class="terminal" id="terminalOutput"></div>
+  </div>
+</div>
+
+<script>
+document.getElementById('pingForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const ip = document.getElementById('ipInput').value;
+  const terminal = document.getElementById('terminalOutput');
+  const btn = document.getElementById('pingBtn');
+  
+  terminal.style.display = 'block';
+  terminal.textContent = 'Executing ping...\\n';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/targets/alpha/ping', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ ip })
+    });
+    
+    const data = await res.json();
+    
+    if (res.ok && data.success) {
+      if (data.glitch) {
+        // RCE SUCCESSFUL! Trigger Glitch Animation
+        document.body.classList.add('glitch-active');
+        
+        // Typewriter effect for terminal output
+        terminal.textContent = '';
+        let i = 0;
+        const speed = 10;
+        function typeWriter() {
+          if (i < data.output.length) {
+            terminal.textContent += data.output.charAt(i);
+            i++;
+            setTimeout(typeWriter, speed);
+          }
+        }
+        typeWriter();
+      } else {
+        // Normal ping
+        terminal.textContent = data.output;
+      }
+    } else {
+      terminal.textContent = 'Error: ' + data.error;
+    }
+  } catch (err) {
+    terminal.textContent = 'Connection error.';
+  }
+  
+  btn.disabled = false;
+});
+</script>
+</body>
+</html>

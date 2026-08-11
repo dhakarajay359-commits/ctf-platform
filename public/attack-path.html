@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Attack Path — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script type="text/javascript" src="https://unpkg.com/vis-network/standalone/umd/vis-network.min.js"></script>
+<script src="/js/notifications.js"></script>
+<script src="/js/timer.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/anticheat.js"></script>
+<link rel="stylesheet" href="/css/terminal.css">
+<script src="/js/terminal.js"></script>
+<style>
+  #network-container {
+    width: 100%;
+    height: 600px;
+    background: rgba(10, 14, 20, 0.8);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    margin-top: 20px;
+    box-shadow: inset 0 0 20px rgba(0,210,255,0.05);
+  }
+</style>
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <a href="/challenges.html">Challenges</a>
+    <a href="/scoreboard.html">Scoreboard</a>
+    <a href="/payloads.html">Payloads</a>
+    <a href="/campaign.html">Campaign</a>
+    <a href="/attack-path.html" class="active">Attack Path</a>
+  </div>
+</div>
+
+<main>
+  <span class="eyebrow">Strategic Overview</span>
+  <h1 style="margin-bottom: 8px;">Attack Path Visualization</h1>
+  <p style="margin-bottom: 32px; max-width: 800px;">Plan your infiltration. Nodes represent targets. Red edges show prerequisites that must be compromised before proceeding.</p>
+
+  <div id="network-container"></div>
+</main>
+
+<footer class="foot">SIGNAL &gt; NOISE</footer>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<script>
+async function loadGraph() {
+  const res = await fetch('/api/challenges');
+  if (res.status === 403 || res.status === 401) {
+    window.location.href = '/';
+    return;
+  }
+  const challenges = await res.json();
+
+  const nodes = new vis.DataSet(challenges.map(c => {
+    let color = '#333';
+    let fontColor = '#888';
+    if (c.solved) {
+      color = 'rgba(0, 255, 102, 0.2)';
+      fontColor = '#00ff66';
+    } else if (!c.requires || challenges.find(x => x.id === c.requires)?.solved) {
+      color = 'rgba(0, 210, 255, 0.2)';
+      fontColor = '#00d2ff';
+    }
+
+    return {
+      id: c.id,
+      label: c.title + '\n(' + c.points + ' pts)',
+      shape: 'box',
+      color: {
+        background: color,
+        border: fontColor
+      },
+      font: { color: fontColor, face: 'monospace' },
+      borderWidth: 2,
+      shadow: { enabled: true, color: fontColor, size: 10 }
+    };
+  }));
+
+  const edges = new vis.DataSet(challenges.filter(c => c.requires).map(c => {
+    const isUnlocked = challenges.find(x => x.id === c.requires)?.solved;
+    return {
+      from: c.requires,
+      to: c.id,
+      arrows: 'to',
+      color: isUnlocked ? '#00ff66' : '#ff3366',
+      dashes: !isUnlocked
+    };
+  }));
+
+  const container = document.getElementById('network-container');
+  const data = { nodes, edges };
+  const options = {
+    layout: {
+      hierarchical: {
+        direction: 'UD',
+        sortMethod: 'directed',
+        levelSeparation: 150
+      }
+    },
+    physics: false,
+    interaction: {
+      dragNodes: true,
+      dragView: true,
+      zoomView: true
+    }
+  };
+
+  new vis.Network(container, data, options);
+}
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  document.getElementById('brandName').textContent = d.event_name.toUpperCase();
+  document.title = 'Attack Path — ' + d.event_name;
+});
+
+loadGraph();
+</script>
+</body>
+</html>

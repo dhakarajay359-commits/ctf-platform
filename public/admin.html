@@ -1,0 +1,874 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Admin — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<script src="/js/notifications.js"></script>`n<script src="/js/timer.js"></script>`n<script src="/js/chat.js"></script>`n<script src="/js/anticheat.js"></script>`n<link rel="stylesheet" href="/css/terminal.css">`n<script src="/js/terminal.js"></script>`n</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> CTF PLATFORM <span style="color:var(--text-muted); font-weight:400;">/ admin</span></div>
+  <div class="nav-links">
+    <span style="font-family: var(--mono); font-size:13px; color: var(--primary); margin-right: 16px;">ADMIN PORTAL</span>
+    <button id="adminLogoutBtn" class="btn-ghost btn-sm hidden">Admin sign out</button>
+  </div>
+</div>
+
+<main>
+  <!-- Admin login gate -->
+  <div id="loginGate" class="panel" style="max-width:400px; margin: 40px auto;">
+    <span class="eyebrow">Restricted</span>
+    <h1>Admin sign in</h1>
+    <div id="loginError" class="alert alert-error hidden"></div>
+    <label for="adminPass">Admin password</label>
+    <input id="adminPass" type="password" placeholder="••••••••">
+    <button id="adminLoginBtn" style="width:100%;">Sign in →</button>
+  </div>
+
+  <!-- Admin dashboard -->
+  <div id="dashboard" class="hidden">
+    <span class="eyebrow">Control room</span>
+    <h1 style="margin-bottom:24px;">Admin dashboard</h1>
+
+    <div class="admin-grid">
+      <div class="admin-sidebar">
+        <button data-section="challenges" class="active">Challenges</button>
+        <button data-section="categories">Categories</button>
+        <button data-section="teams">Teams</button>
+        <button data-section="analytics">Analytics 📊</button>
+        <button data-section="security">Security 🛡</button>
+        <button data-section="anomaly">Anomalies ⚠</button>
+        <button data-section="chat">Support Chat</button>
+        <button data-section="settings">Settings</button>
+      </div>
+
+      <div>
+        <!-- CHALLENGES -->
+        <section id="section-challenges">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="margin:0;">Challenges</h2>
+            <button id="newChallengeBtn">+ Add challenge</button>
+          </div>
+          <div id="challengeList" class="table-list"></div>
+        </section>
+
+        <!-- CATEGORIES -->
+        <section id="section-categories" class="hidden">
+          <h2>Categories</h2>
+          <div class="field-row" style="align-items:flex-end;">
+            <div><label for="newCatName">New category</label><input id="newCatName" placeholder="e.g. Web"></div>
+            <div style="flex: 0 0 auto;"><button id="addCatBtn">Add</button></div>
+          </div>
+          <div id="categoryList" class="table-list"></div>
+        </section>
+
+        <!-- TEAMS -->
+        <section id="section-teams" class="hidden">
+          <h2>Teams</h2>
+          <div id="teamList" class="table-list"></div>
+        </section>
+
+        <!-- ANALYTICS -->
+        <section id="section-analytics" class="hidden">
+          <h2>Challenge Analytics</h2>
+          <p style="color:var(--text-muted);">Leaderboard of challenges by number of solves. Identifies the most solvable targets.</p>
+          <div id="analyticsList" class="table-list"></div>
+        </section>
+
+        <!-- ANOMALIES -->
+        <section id="section-anomaly" class="hidden">
+          <h2>Anomaly System (Flash Events)</h2>
+          <div class="panel" style="margin-bottom:20px;">
+            <p style="color:var(--text-muted); margin-top:0;">Trigger a global event that multiplies points for a specific category for a limited time.</p>
+            <div id="activeAnomalyBox" class="alert hidden"></div>
+            
+            <div class="field-row">
+              <div>
+                <label for="anoCategory">Category to Surge</label>
+                <select id="anoCategory"></select>
+              </div>
+              <div>
+                <label for="anoMultiplier">Point Multiplier</label>
+                <select id="anoMultiplier">
+                  <option value="1.2">1.2x</option>
+                  <option value="1.5">1.5x</option>
+                  <option value="2.0">2.0x</option>
+                </select>
+              </div>
+              <div>
+                <label for="anoDuration">Duration (minutes)</label>
+                <input id="anoDuration" type="number" value="15">
+              </div>
+            </div>
+            <div style="display:flex; gap:10px;">
+              <button id="triggerAnomalyBtn" class="btn-primary">⚠ Trigger Anomaly</button>
+              <button id="clearAnomalyBtn" class="btn-danger hidden">Clear Active Anomaly</button>
+            </div>
+          </div>
+        </section>
+
+        <!-- SECURITY -->
+        <section id="section-security" class="hidden">
+          <h2>Security Alerts</h2>
+          <p style="color:var(--text-muted);">Real-time monitoring for malicious activity and flag sharing.</p>
+          <div id="securityAlertsList" style="display:flex; flex-direction:column; gap:10px;">
+            <div style="color:var(--text-muted); font-style:italic;">No security alerts right now. System is clean.</div>
+          </div>
+        </section>
+
+        <!-- CHAT -->
+        <section id="section-chat" class="hidden">
+          <h2>Support Chat</h2>
+          <div style="display:flex; gap:20px; height: 500px;">
+            <div id="chatTeamList" style="width: 250px; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:4px; overflow-y:auto; padding:10px;">
+              <div style="color:var(--text-muted); text-align:center; padding: 20px;">No active chats</div>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:4px;">
+              <div id="chatAdminHeader" style="padding:15px; border-bottom:1px solid var(--border-color); font-weight:bold;">Select a team...</div>
+              <div id="chatAdminMessages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:10px;"></div>
+              <div style="padding:15px; border-top:1px solid var(--border-color); display:flex; gap:10px;">
+                <input type="text" id="chatAdminInput" placeholder="Reply..." style="flex:1;" disabled>
+                <button id="chatAdminSendBtn" disabled>Send</button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        <!-- SETTINGS -->
+        <section id="section-settings" class="hidden">
+          <h2>Event settings</h2>
+          <label for="setEventName">Event name</label>
+          <input id="setEventName">
+          <label for="setRegOpen">Registration</label>
+          <select id="setRegOpen" style="margin-bottom:20px;">
+            <option value="1">Open</option>
+            <option value="0">Closed</option>
+          </select>
+          
+          <label for="setHeadline">Global Headline / Announcement</label>
+          <textarea id="setHeadline" placeholder="Broadcast a message to all players..." style="width: 100%; height: 80px; margin-bottom: 20px; font-family: var(--mono); padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: #fff;"></textarea>
+          
+          <hr style="border:none; border-top:1px solid var(--border-color); margin:20px 0;">
+          
+          <h2>CTF Timer</h2>
+          <p style="color:var(--text-muted);">Set a global countdown timer. When active, it displays on all user screens.</p>
+          <label for="timerStart">Scheduled Start Time (Optional)</label>
+          <input type="datetime-local" id="timerStart">
+          <label for="timerDuration">Duration (Minutes)</label>
+          <input type="number" id="timerDuration" placeholder="e.g. 120 for 2 hours">
+          <div style="display:flex; gap:10px; margin-bottom: 20px;">
+            <button id="startTimerBtn" class="btn-primary">Set Timer</button>
+            <button id="stopTimerBtn" class="btn-danger">Stop/Clear Timer</button>
+          </div>
+
+          <hr style="border:none; border-top:1px solid var(--border); margin:20px 0;">
+          
+          <button id="saveSettingsBtn">Save settings</button>
+          <div id="settingsMsg"></div>
+          
+          <hr style="border:none; border-top:1px solid var(--border); margin:30px 0;">
+          
+          <h2>Change Admin Password</h2>
+          <p style="color:var(--text-muted);">Change the master password used to access this admin panel.</p>
+          <div style="display:flex; flex-direction:column; gap:10px; max-width: 400px;">
+            <input type="password" id="currentAdminPass" placeholder="Current Password">
+            <input type="password" id="newAdminPass" placeholder="New Password">
+            <button id="changeAdminPassBtn">Update Password</button>
+            <div id="changePassMsg" style="margin-top: 10px;"></div>
+          </div>
+
+          <div style="margin-top: 40px; border: 1px solid var(--danger); border-radius: var(--radius); padding: 20px; background: rgba(255, 51, 102, 0.05);">
+            <h2 style="color: var(--danger); margin-top: 0;">Danger Zone</h2>
+            <p style="color: var(--text-muted); margin-bottom: 20px;">
+              Resetting CTF data will permanently delete all registered teams, solves, chat messages, and notifications. <strong>Challenges, categories, and settings will be preserved.</strong> Use this to prepare the platform for a new event.
+            </p>
+            <button id="resetDataBtn" class="btn-danger">⚠ Reset Event Data</button>
+          </div>
+        </section>
+      </div>
+    </div>
+  </div>
+</main>
+
+<!-- Challenge editor modal -->
+<div class="modal-backdrop hidden" id="editorBackdrop">
+  <div class="modal" id="editorModal"></div>
+</div>
+
+<script>
+let categories = [];
+let editingChallengeId = null;
+
+// ---------- Auth gate ----------
+async function checkAdmin() {
+  const res = await fetch('/api/auth/me');
+  const data = await res.json();
+  if (data.isAdmin) {
+    document.getElementById('loginGate').classList.add('hidden');
+    document.getElementById('dashboard').classList.remove('hidden');
+    document.getElementById('adminLogoutBtn').classList.remove('hidden');
+    initDashboard();
+  } else {
+    document.getElementById('loginGate').classList.remove('hidden');
+    document.getElementById('dashboard').classList.add('hidden');
+  }
+}
+
+document.getElementById('adminLoginBtn').onclick = async () => {
+  const password = document.getElementById('adminPass').value;
+  const res = await fetch('/api/admin/login', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ password })
+  });
+  const data = await res.json();
+  const errBox = document.getElementById('loginError');
+  if (!res.ok) {
+    errBox.textContent = data.error || 'Login failed.';
+    errBox.classList.remove('hidden');
+    return;
+  }
+  errBox.classList.add('hidden');
+  window.location.reload();
+};
+
+document.getElementById('adminLogoutBtn').onclick = async () => {
+  await fetch('/api/admin/logout', { method: 'POST' });
+  window.location.reload();
+};
+
+// ---------- Sidebar nav ----------
+document.querySelectorAll('.admin-sidebar button').forEach(btn => {
+  btn.onclick = () => {
+    document.querySelectorAll('.admin-sidebar button').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    document.querySelectorAll('[id^="section-"]').forEach(s => s.classList.add('hidden'));
+    document.getElementById('section-' + btn.dataset.section).classList.remove('hidden');
+  };
+});
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+async function initDashboard() {
+  await loadCategories();
+  await loadChallenges();
+  await loadTeams();
+  await loadAnomaly();
+  await loadSettings();
+  await loadAnalytics();
+}
+
+async function loadAnalytics() {
+  const challenges = await fetch('/api/admin/challenges').then(r => r.json());
+  
+  // Sort by solve count descending
+  challenges.sort((a, b) => b.solveCount - a.solveCount);
+  
+  const list = document.getElementById('analyticsList');
+  list.innerHTML = challenges.map((c, index) => `
+    <div class="table-row">
+      <div style="display:flex; align-items:center; gap: 15px;">
+        <div style="font-size: 24px; font-family: var(--mono); font-weight: bold; color: ${index === 0 ? '#FFD700' : index === 1 ? '#C0C0C0' : index === 2 ? '#CD7F32' : 'var(--text-muted)'}; width: 30px; text-align: center;">
+          #${index + 1}
+        </div>
+        <div>
+          <div class="title">${escapeHtml(c.title)}</div>
+          <div class="sub">${escapeHtml(c.category || 'Uncategorized')}</div>
+        </div>
+      </div>
+      <div class="row-actions">
+        <span style="font-family: var(--mono); font-size: 18px; font-weight: bold; color: var(--success);">${c.solveCount} SOLVES</span>
+      </div>
+    </div>
+  `).join('') || '<p>No data available.</p>';
+}
+
+// ---------- Categories ----------
+async function loadCategories() {
+  categories = await fetch('/api/admin/categories').then(r => r.json());
+  const list = document.getElementById('categoryList');
+  list.innerHTML = categories.map(c => `
+    <div class="table-row">
+      <div class="title">${escapeHtml(c.name)}</div>
+      <div class="row-actions"><button class="btn-ghost btn-sm delete-cat" data-id="${c.id}">Delete</button></div>
+    </div>
+  `).join('') || '<p>No categories yet.</p>';
+
+  list.querySelectorAll('.delete-cat').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Delete this category? Challenges in it will become uncategorized.')) return;
+      await fetch(`/api/admin/categories/${btn.dataset.id}`, { method: 'DELETE' });
+      await loadCategories();
+      await loadChallenges();
+    };
+  });
+
+  const sel = document.getElementById('anoCategory');
+  if(sel) sel.innerHTML = catOptions(null);
+}
+
+document.getElementById('addCatBtn').onclick = async () => {
+  const input = document.getElementById('newCatName');
+  if (!input.value.trim()) return;
+  const res = await fetch('/api/admin/categories', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ name: input.value })
+  });
+  if (res.ok) { input.value = ''; loadCategories(); }
+};
+
+// ---------- Challenges ----------
+async function loadChallenges() {
+  const challenges = await fetch('/api/admin/challenges').then(r => r.json());
+  const list = document.getElementById('challengeList');
+  list.innerHTML = challenges.map(c => `
+    <div class="table-row">
+      <div>
+        <div class="title">${escapeHtml(c.title)} <span style="color:var(--amber);">${c.points}pt</span></div>
+        <div class="sub">${escapeHtml(c.category || 'Uncategorized')} · ${c.solveCount} solve(s) · ${c.visible ? 'visible' : 'hidden'}</div>
+      </div>
+      <div class="row-actions">
+        <button class="btn-ghost btn-sm edit-chal" data-id="${c.id}">Edit</button>
+        <button class="btn-danger btn-sm delete-chal" data-id="${c.id}">Delete</button>
+      </div>
+    </div>
+  `).join('') || '<p>No challenges yet — add your first one.</p>';
+
+  list.querySelectorAll('.edit-chal').forEach(btn => {
+    btn.onclick = () => openEditor(challenges.find(c => c.id === Number(btn.dataset.id)));
+  });
+  list.querySelectorAll('.delete-chal').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Delete this challenge? This cannot be undone.')) return;
+      await fetch(`/api/admin/challenges/${btn.dataset.id}`, { method: 'DELETE' });
+      loadChallenges();
+    };
+  });
+}
+
+document.getElementById('newChallengeBtn').onclick = () => openEditor(null);
+
+function catOptions(selectedId) {
+  return categories.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
+}
+
+function openEditor(challenge) {
+  editingChallengeId = challenge ? challenge.id : null;
+  const hints = challenge?.hints || [];
+
+  document.getElementById('editorModal').innerHTML = `
+    <button class="modal-close" id="closeEditor">×</button>
+    <h2>${challenge ? 'Edit challenge' : 'New challenge'}</h2>
+
+    <label for="fTitle">Title</label>
+    <input id="fTitle" value="${challenge ? escapeHtml(challenge.title) : ''}">
+
+    <div class="field-row">
+      <div>
+        <label for="fCategory">Category</label>
+        <select id="fCategory"><option value="">Uncategorized</option>${catOptions(challenge?.category_id)}</select>
+      </div>
+      <div>
+        <label for="fPoints">Points</label>
+        <input id="fPoints" type="number" value="${challenge ? challenge.points : 100}">
+      </div>
+      <div>
+        <label for="fRequires">Prerequisite</label>
+        <select id="fRequires"><option value="">None</option></select>
+      </div>
+    </div>
+
+    <div class="field-row">
+      <div>
+        <label for="fDifficulty">Difficulty</label>
+        <select id="fDifficulty">
+          ${['easy','medium','hard','insane'].map(d => `<option value="${d}" ${challenge?.difficulty === d ? 'selected' : ''}>${d}</option>`).join('')}
+        </select>
+      </div>
+      <div>
+        <label for="fVisible">Visibility</label>
+        <select id="fVisible">
+          <option value="1" ${!challenge || challenge.visible ? 'selected' : ''}>Visible</option>
+          <option value="0" ${challenge && !challenge.visible ? 'selected' : ''}>Hidden</option>
+        </select>
+      </div>
+    </div>
+
+    <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:15px;">
+      <label for="fDescription" style="margin-bottom:0;">Question / Description (Markdown supported)</label>
+      <label for="mediaUpload" class="btn-ghost btn-sm" style="cursor:pointer; display:inline-block; font-weight:normal; margin-bottom:0; font-family:var(--sans);">
+        <span id="uploadLabel">Upload Media (Img/Audio)</span>
+        <input type="file" id="mediaUpload" style="display:none;" accept="image/*,audio/*,.zip,.pdf,.txt">
+      </label>
+    </div>
+    <div style="display: flex; gap: 10px; margin-top: 8px; margin-bottom: 15px;">
+      <textarea id="fDescription" style="flex: 1; min-height: 150px; font-family: monospace;" oninput="document.getElementById('mdPreview').innerHTML = marked.parse(this.value)">${challenge ? escapeHtml(challenge.description) : ''}</textarea>
+      <div id="mdPreview" style="flex: 1; padding: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: var(--radius); overflow-y: auto; max-height: 150px;"></div>
+    </div>
+
+    <label for="fLink">Resource link (optional)</label>
+    <input id="fLink" value="${challenge?.link ? escapeHtml(challenge.link) : ''}" placeholder="https://...">
+
+    <label for="fFlag">Flag ${challenge ? '(leave blank to keep current)' : ''}</label>
+    <input id="fFlag" placeholder="flag{...}">
+
+    <label>Hints</label>
+    <div id="hintsContainer">
+      ${hints.map(h => `
+        <div class="hint-row" data-existing-id="${h.id}">
+          <input type="text" value="${escapeHtml(h.text)}" placeholder="Hint text">
+          <input type="number" value="${h.cost}" placeholder="Cost">
+          <button type="button" class="btn-ghost btn-sm remove-hint">×</button>
+        </div>
+      `).join('')}
+    </div>
+    <button type="button" class="btn-ghost btn-sm" id="addHintRow">+ Add hint</button>
+
+    <div style="margin-top:20px; display:flex; gap:10px;">
+      <button id="saveChallengeBtn">${challenge ? 'Save changes' : 'Create challenge'}</button>
+      <button type="button" class="btn-ghost" id="cancelEditor">Cancel</button>
+    </div>
+    <div id="editorMsg"></div>
+  `;
+
+  document.getElementById('editorBackdrop').classList.remove('hidden');
+  document.getElementById('closeEditor').onclick = closeEditor;
+  document.getElementById('cancelEditor').onclick = closeEditor;
+
+  // Populate requires dropdown with existing challenges
+  fetch('/api/admin/challenges').then(r => r.json()).then(allChals => {
+    const sel = document.getElementById('fRequires');
+    if(sel) {
+      allChals.forEach(c => {
+        if (!challenge || c.id !== challenge.id) {
+          const opt = document.createElement('option');
+          opt.value = c.id;
+          opt.textContent = c.title;
+          if (challenge && challenge.requires === c.id) opt.selected = true;
+          sel.appendChild(opt);
+        }
+      });
+    }
+  });
+
+  // Init markdown preview
+  const initialDesc = document.getElementById('fDescription').value;
+  if (initialDesc) {
+    document.getElementById('mdPreview').innerHTML = marked.parse(initialDesc);
+  }
+
+  // Media Upload Logic
+  const mediaInput = document.getElementById('mediaUpload');
+  const uploadLabel = document.getElementById('uploadLabel');
+  if (mediaInput) {
+    mediaInput.onchange = async (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      uploadLabel.textContent = 'Uploading...';
+      const formData = new FormData();
+      formData.append('media', file);
+      try {
+        const res = await fetch('/api/admin/upload', {
+          method: 'POST',
+          body: formData
+        });
+        const data = await res.json();
+        if (data.url) {
+          const ta = document.getElementById('fDescription');
+          const ext = file.name.split('.').pop().toLowerCase();
+          let snippet = `\n\n[Download ${escapeHtml(file.name)}](${data.url})`;
+          if (['png','jpg','jpeg','gif','webp','svg'].includes(ext)) {
+            snippet = `\n\n![${escapeHtml(file.name)}](${data.url})`;
+          } else if (['mp3','wav','ogg'].includes(ext)) {
+            snippet = `\n\n<audio controls src="${data.url}" style="width:100%; border-radius:4px; margin-top:10px;"></audio>`;
+          }
+          ta.value += snippet;
+          document.getElementById('mdPreview').innerHTML = marked.parse(ta.value);
+        }
+      } catch (err) {
+        alert('Upload failed.');
+      }
+      uploadLabel.textContent = 'Upload Media (Img/Audio)';
+      mediaInput.value = ''; // reset
+    };
+  }
+
+  document.getElementById('addHintRow').onclick = () => {
+    const row = document.createElement('div');
+    row.className = 'hint-row';
+    row.innerHTML = `
+      <input type="text" placeholder="Hint text">
+      <input type="number" placeholder="Cost" value="0">
+      <button type="button" class="btn-ghost btn-sm remove-hint">×</button>
+    `;
+    document.getElementById('hintsContainer').appendChild(row);
+    row.querySelector('.remove-hint').onclick = () => row.remove();
+  };
+  document.querySelectorAll('.remove-hint').forEach(btn => {
+    btn.onclick = () => btn.closest('.hint-row').remove();
+  });
+
+  document.getElementById('saveChallengeBtn').onclick = saveChallenge;
+}
+
+function closeEditor() {
+  document.getElementById('editorBackdrop').classList.add('hidden');
+}
+
+async function saveChallenge() {
+  const title = document.getElementById('fTitle').value.trim();
+  const categoryId = document.getElementById('fCategory').value || null;
+  const points = document.getElementById('fPoints').value;
+  const difficulty = document.getElementById('fDifficulty').value;
+  const visible = document.getElementById('fVisible').value === '1';
+  const requires = document.getElementById('fRequires').value || null;
+  const description = document.getElementById('fDescription').value;
+  const link = document.getElementById('fLink').value.trim();
+  const flag = document.getElementById('fFlag').value.trim();
+
+  const hintRows = [...document.querySelectorAll('#hintsContainer .hint-row')];
+  const hints = hintRows.map(row => {
+    const inputs = row.querySelectorAll('input');
+    return { text: inputs[0].value, cost: Number(inputs[1].value) || 0 };
+  }).filter(h => h.text.trim());
+
+  const msg = document.getElementById('editorMsg');
+
+  if (!title || !description || (!editingChallengeId && !flag) || !points) {
+    msg.innerHTML = '<div class="alert alert-error">Title, description, points, and flag are required.</div>';
+    return;
+  }
+
+  const payload = { title, categoryId, points, difficulty, visible, requires, description, link, flag, hints };
+
+  let res;
+  if (editingChallengeId) {
+    res = await fetch(`/api/admin/challenges/${editingChallengeId}`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+    // hints on edit: for simplicity, sync by removing all existing then re-adding
+    if (res.ok) {
+      const existing = await fetch('/api/admin/challenges').then(r => r.json())
+        .then(list => list.find(c => c.id === editingChallengeId));
+      for (const h of existing.hints) {
+        await fetch(`/api/admin/hints/${h.id}`, { method: 'DELETE' });
+      }
+      for (const h of hints) {
+        await fetch(`/api/admin/challenges/${editingChallengeId}/hints`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(h)
+        });
+      }
+    }
+  } else {
+    res = await fetch('/api/admin/challenges', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload)
+    });
+  }
+
+  if (!res.ok) {
+    const data = await res.json();
+    msg.innerHTML = `<div class="alert alert-error">${escapeHtml(data.error || 'Save failed.')}</div>`;
+    return;
+  }
+
+  closeEditor();
+  loadChallenges();
+}
+
+// ---------- Teams ----------
+async function loadTeams() {
+  const teams = await fetch('/api/admin/teams').then(r => r.json());
+  const list = document.getElementById('teamList');
+  list.innerHTML = teams.map(t => `
+    <div class="table-row">
+      <div>
+        <div class="title">${escapeHtml(t.name)} ${t.is_banned ? '<span style="color:var(--danger); font-size:12px; font-weight:bold; margin-left:10px;">[BANNED]</span>' : ''}</div>
+        <div class="sub">${t.operative_type || 'Syndicate'} (${t.members_count || 2} members) · joined ${new Date(t.created_at + 'Z').toLocaleString()}</div>
+      </div>
+      <div class="row-actions">
+        ${t.is_banned ? 
+          `<button class="btn-primary btn-sm unban-team" data-id="${t.id}">Unban ✅</button>` : 
+          `<button class="btn-ghost btn-sm ban-team" data-id="${t.id}">Ban 🛑</button>`
+        }
+        <button class="btn-danger btn-sm delete-team" data-id="${t.id}">Remove</button>
+      </div>
+    </div>
+  `).join('') || '<p>No teams registered yet.</p>';
+
+  list.querySelectorAll('.ban-team').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Are you sure you want to ban this team?')) return;
+      await fetch(`/api/admin/teams/${btn.dataset.id}/ban`, { method: 'POST' });
+      loadTeams();
+    };
+  });
+
+  list.querySelectorAll('.unban-team').forEach(btn => {
+    btn.onclick = async () => {
+      await fetch(`/api/admin/teams/${btn.dataset.id}/unban`, { method: 'POST' });
+      loadTeams();
+    };
+  });
+
+  list.querySelectorAll('.delete-team').forEach(btn => {
+    btn.onclick = async () => {
+      if (!confirm('Remove this team and all their progress?')) return;
+      await fetch(`/api/admin/teams/${btn.dataset.id}`, { method: 'DELETE' });
+      loadTeams();
+    };
+  });
+}
+
+// ---------- Anomalies ----------
+let anomalyInterval = null;
+async function loadAnomaly() {
+  const res = await fetch('/api/admin/anomaly');
+  const data = await res.json();
+  renderAnomalyState(data.categoryId ? data : null);
+}
+
+function renderAnomalyState(anomaly) {
+  const box = document.getElementById('activeAnomalyBox');
+  const triggerBtn = document.getElementById('triggerAnomalyBtn');
+  const clearBtn = document.getElementById('clearAnomalyBtn');
+  clearInterval(anomalyInterval);
+
+  if (!anomaly) {
+    box.classList.add('hidden');
+    triggerBtn.classList.remove('hidden');
+    clearBtn.classList.add('hidden');
+  } else {
+    box.classList.remove('hidden');
+    box.className = 'alert alert-error';
+    triggerBtn.classList.add('hidden');
+    clearBtn.classList.remove('hidden');
+
+    const updateTimer = () => {
+      const remaining = anomaly.endTime - Date.now();
+      if (remaining <= 0) {
+        box.textContent = 'Anomaly ended.';
+        clearInterval(anomalyInterval);
+        loadAnomaly(); // refresh
+      } else {
+        const m = Math.floor(remaining / 60000);
+        const s = Math.floor((remaining % 60000) / 1000).toString().padStart(2, '0');
+        box.innerHTML = `<strong>ACTIVE ANOMALY:</strong> ${anomaly.multiplier}x points for [${anomaly.categoryName}]! Ends in ${m}:${s}`;
+      }
+    };
+    updateTimer();
+    anomalyInterval = setInterval(updateTimer, 1000);
+  }
+}
+
+document.getElementById('triggerAnomalyBtn').onclick = async () => {
+  const categoryId = document.getElementById('anoCategory').value;
+  const multiplier = document.getElementById('anoMultiplier').value;
+  const durationMinutes = document.getElementById('anoDuration').value;
+  if (!categoryId) return alert('Select a category first.');
+
+  const res = await fetch('/api/admin/anomaly', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ categoryId, multiplier, durationMinutes })
+  });
+  renderAnomalyState(await res.json());
+};
+
+document.getElementById('clearAnomalyBtn').onclick = async () => {
+  await fetch('/api/admin/anomaly/clear', { method: 'POST' });
+  renderAnomalyState(null);
+};
+
+// ---------- Settings ----------
+async function loadSettings() {
+  const settings = await fetch('/api/admin/settings').then(r => r.json());
+  document.getElementById('setEventName').value = settings.event_name || '';
+  document.getElementById('setRegOpen').value = settings.registration_open || '1';
+  const headlineInput = document.getElementById('setHeadline');
+  if (headlineInput) headlineInput.value = settings.headline || '';
+  if (settings.ctf_start_time) {
+    const d = new Date(Number(settings.ctf_start_time));
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('timerStart').value = d.toISOString().slice(0, 16);
+  } else {
+    document.getElementById('timerStart').value = '';
+  }
+}
+
+document.getElementById('resetDataBtn').onclick = async () => {
+  const code = Math.floor(1000 + Math.random() * 9000);
+  const conf = prompt(`WARNING: This will permanently delete all teams, solves, and chat messages. Challenges and settings are preserved.\n\nType ${code} to confirm:`);
+  
+  if (conf !== String(code)) {
+    if (conf !== null) alert('Reset cancelled. Incorrect code.');
+    return;
+  }
+  
+  const res = await fetch('/api/admin/reset', { method: 'POST' });
+  if (res.ok) {
+    alert('Event data has been reset successfully!');
+    window.location.reload();
+  } else {
+    alert('Failed to reset data.');
+  }
+};
+
+document.getElementById('saveSettingsBtn').onclick = async () => {
+  const event_name = document.getElementById('setEventName').value;
+  const registration_open = document.getElementById('setRegOpen').value;
+  const headline = document.getElementById('setHeadline').value;
+  const res = await fetch('/api/admin/settings', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_name, registration_open, headline })
+  });
+  const msg = document.getElementById('settingsMsg');
+  msg.innerHTML = res.ok ? '<div class="alert alert-success">Saved.</div>' : '<div class="alert alert-error">Failed to save.</div>';
+};
+
+document.getElementById('changeAdminPassBtn').onclick = async () => {
+  const currentPassword = document.getElementById('currentAdminPass').value;
+  const newPassword = document.getElementById('newAdminPass').value;
+  const msg = document.getElementById('changePassMsg');
+
+  if (!currentPassword || !newPassword) {
+    msg.innerHTML = '<div class="alert alert-error">Both fields are required.</div>';
+    return;
+  }
+
+  const res = await fetch('/api/admin/password', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ currentPassword, newPassword })
+  });
+
+  const data = await res.json();
+  if (res.ok) {
+    msg.innerHTML = '<div class="alert alert-success">Password updated successfully!</div>';
+    document.getElementById('currentAdminPass').value = '';
+    document.getElementById('newAdminPass').value = '';
+  } else {
+    msg.innerHTML = `<div class="alert alert-error">${data.error || 'Failed to update.'}</div>`;
+  }
+};
+
+checkAdmin();
+// ---------- Admin Chat ----------
+let activeChatTeamId = null;
+async function loadChatTeams() {
+  const res = await fetch('/api/admin/chat/teams');
+  const teams = await res.json();
+  const list = document.getElementById('chatTeamList');
+  list.innerHTML = '';
+  if (teams.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 20px;">No active chats</div>';
+    return;
+  }
+  teams.forEach(t => {
+    const d = document.createElement('div');
+    d.className = 'chat-team-item';
+    d.style.cssText = 'padding: 10px; cursor:pointer; border-bottom:1px solid var(--border-color); transition: background 0.2s;';
+    d.textContent = t.name;
+    d.onclick = () => {
+      document.querySelectorAll('.chat-team-item').forEach(el => el.style.background = 'transparent');
+      d.style.background = 'var(--panel-hover)';
+      openAdminChat(t.id, t.name);
+    };
+    list.appendChild(d);
+  });
+}
+
+async function openAdminChat(teamId, teamName) {
+  activeChatTeamId = teamId;
+  document.getElementById('chatAdminHeader').textContent = 'Chat with: ' + teamName;
+  document.getElementById('chatAdminInput').disabled = false;
+  document.getElementById('chatAdminSendBtn').disabled = false;
+  const res = await fetch('/api/admin/chat/messages/' + teamId);
+  const msgs = await res.json();
+  const box = document.getElementById('chatAdminMessages');
+  box.innerHTML = '';
+  msgs.forEach(m => appendAdminChatMessage(m));
+}
+
+function appendAdminChatMessage(msg) {
+  if (!activeChatTeamId || msg.team_id !== activeChatTeamId) return;
+  const box = document.getElementById('chatAdminMessages');
+  const d = document.createElement('div');
+  d.className = 'chat-msg ' + (msg.is_from_admin ? 'admin-msg' : 'user-msg');
+  d.textContent = msg.text;
+  box.appendChild(d);
+  box.scrollTop = box.scrollHeight;
+}
+
+const fbSocket = typeof io !== 'undefined' ? io() : null;
+if (fbSocket) {
+  fbSocket.on('chat:receive', (msg) => {
+    if (activeChatTeamId && msg.team_id === activeChatTeamId) {
+      appendAdminChatMessage(msg);
+    } else {
+      // Reload team list to show new teams if they messaged
+      loadChatTeams();
+    }
+  });
+
+  fbSocket.on('admin:alert', (data) => {
+    const list = document.getElementById('securityAlertsList');
+    if (list.innerHTML.includes('No security alerts')) list.innerHTML = '';
+    
+    const d = document.createElement('div');
+    d.className = 'alert alert-error';
+    d.innerHTML = `<strong>[${new Date(data.timestamp).toLocaleTimeString()}] ${data.type}:</strong> ${data.message}`;
+    list.prepend(d);
+  });
+}
+
+function sendAdminChat() {
+  if (!activeChatTeamId) return;
+  const input = document.getElementById('chatAdminInput');
+  const text = input.value.trim();
+  if (!text) return;
+  fbSocket.emit('chat:send', { text, toTeamId: activeChatTeamId });
+  input.value = '';
+}
+document.getElementById('chatAdminSendBtn').onclick = sendAdminChat;
+document.getElementById('chatAdminInput').addEventListener('keypress', e => {
+  if (e.key === 'Enter') sendAdminChat();
+});
+
+// ---------- Timer ----------
+document.getElementById('startTimerBtn').onclick = async () => {
+  const durationMinutes = document.getElementById('timerDuration').value;
+  const timerStart = document.getElementById('timerStart').value;
+  let startTimestamp = null;
+  if (timerStart) {
+    startTimestamp = new Date(timerStart).getTime();
+  }
+  
+  if (!durationMinutes) return alert('Enter duration in minutes');
+  await fetch('/api/admin/timer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ durationMinutes, startTimestamp })
+  });
+  alert('Timer configured globally!');
+};
+document.getElementById('stopTimerBtn').onclick = async () => {
+  await fetch('/api/admin/timer', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ durationMinutes: 0, startTimestamp: null })
+  });
+  alert('Timer stopped!');
+};
+
+// Initial calls when opening sections
+document.querySelectorAll('.admin-sidebar button').forEach(btn => {
+  btn.addEventListener('click', () => {
+    if (btn.dataset.section === 'chat') loadChatTeams();
+  });
+});
+</script>
+</body>
+</html>

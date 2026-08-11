@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live Heat Feed — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="/js/notifications.js"></script>
+<script src="/js/timer.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/anticheat.js"></script>
+<link rel="stylesheet" href="/css/terminal.css">
+<script src="/js/terminal.js"></script>
+<link rel="icon" href="data:;base64,iVBORw0KGgo=">
+</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <span style="font-family: var(--mono); font-size:13px; color: var(--text-muted); margin-left: 8px;">SPECTATOR MODE</span>
+  </div>
+</div>
+
+<main>
+  <span class="eyebrow">Live Feed</span>
+  <h1 style="margin-bottom: 20px;">Challenge Heat</h1>
+
+  <div class="panel" style="padding: 0; overflow-x: auto;">
+    <table class="scoreboard-table">
+      <thead>
+        <tr>
+          <th>Challenge</th>
+          <th>Category</th>
+          <th>Solves</th>
+          <th>Attempts</th>
+        </tr>
+      </thead>
+      <tbody id="heatTable">
+      </tbody>
+    </table>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script>
+let challenges = [];
+
+async function loadHeat() {
+  const res = await fetch('/api/spectator/heat');
+  challenges = await res.json();
+  renderHeat();
+}
+
+function renderHeat(data) {
+  const tbody = document.getElementById('heatTable');
+  tbody.innerHTML = '';
+  
+  challenges.sort((a, b) => (b.solves + b.attempts) - (a.solves + a.attempts)); // Sort by most active
+  
+  challenges.forEach(c => {
+    const type = data?.type;
+    const tr = document.createElement('tr');
+    if (type === 'solve' && c.id === data?.challengeId) tr.classList.add('row-flash');
+    tr.innerHTML = `
+      <td><strong>${escapeHtml(c.title)}</strong></td>
+      <td style="color: var(--text-muted);">${escapeHtml(c.category)}</td>
+      <td style="color: var(--success);">${c.solves}</td>
+      <td style="color: var(--danger);">${c.attempts}</td>
+    `;
+    tbody.appendChild(tr);
+  });
+}
+
+function escapeHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  document.getElementById('brandName').textContent = d.event_name.toUpperCase();
+  document.title = 'Live Heat Feed — ' + d.event_name;
+});
+
+const socket = io();
+socket.on('heat:update', (data) => {
+  const { type, challengeId } = data;
+  const c = challenges.find(x => x.id === challengeId);
+  if (c) {
+    if (type === 'solve') c.solves++;
+    if (type === 'attempt') c.attempts++;
+    renderHeat(data);
+  }
+});
+
+loadHeat();
+</script>
+</body>
+</html>

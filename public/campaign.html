@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Campaign — CTF Platform</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="/js/notifications.js"></script>`n<script src="/js/timer.js"></script>`n<script src="/js/chat.js"></script>`n<script src="/js/anticheat.js"></script>`n<link rel="stylesheet" href="/css/terminal.css">`n<script src="/js/terminal.js"></script>`n</head>
+<body>
+<div class="topbar">
+  <div class="brand"><span class="dot"></span> <span id="brandName">CTF PLATFORM</span></div>
+  <div class="nav-links">
+    <a href="/challenges.html">Challenges</a>
+    <a href="/scoreboard.html">Scoreboard</a>
+    <a href="/payloads.html">Payloads</a>
+    <a href="/campaign.html" class="active">Campaign</a>
+  </div>
+</div>
+
+<main>
+  <span class="eyebrow">Story Mode</span>
+  <h1 style="margin-bottom: 8px;">Classified Lore</h1>
+  <p style="margin-bottom: 32px; max-width: 600px;">Unlock chapters by completing critical missions and hacking specific targets. The deeper you go, the more you uncover about OmniCorp.</p>
+
+  <div class="lore-layout">
+    <div id="chapterSidebar">
+      <!-- Chapters load here -->
+    </div>
+    
+    <div>
+      <div class="lore-panel" id="lorePanel" style="display: none;">
+        <div class="lore-title fade-in-up" id="chapterTitle"></div>
+        <div class="lore-content" id="chapterContent"></div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="/socket.io/socket.io.js"></script>
+<script src="/js/firstblood.js"></script>
+<script>
+let chaptersData = [];
+
+async function loadCampaign() {
+  const res = await fetch('/api/campaign');
+  if (res.status === 401) {
+    window.location.href = '/';
+    return;
+  }
+  chaptersData = await res.json();
+  
+  if (chaptersData.length > 0) {
+    renderSidebar();
+    selectChapter(0);
+  }
+}
+
+function renderSidebar() {
+  const sidebar = document.getElementById('chapterSidebar');
+  sidebar.innerHTML = '';
+  
+  chaptersData.forEach((ch, index) => {
+    const btn = document.createElement('button');
+    btn.className = 'chapter-btn';
+    
+    const titleSpan = document.createElement('span');
+    titleSpan.textContent = ch.title;
+    
+    const iconSpan = document.createElement('span');
+    iconSpan.innerHTML = ch.unlocked ? '&#128275;' : '&#128274;';
+    
+    btn.appendChild(titleSpan);
+    btn.appendChild(iconSpan);
+    
+    if (!ch.unlocked) {
+      btn.disabled = true;
+    } else {
+      btn.onclick = () => selectChapter(index);
+    }
+    
+    sidebar.appendChild(btn);
+  });
+}
+
+let typewriterInterval;
+
+function selectChapter(index) {
+  const sidebar = document.getElementById('chapterSidebar');
+  Array.from(sidebar.children).forEach((btn, i) => {
+    if (!chaptersData[i].unlocked) return;
+    btn.classList.toggle('active', i === index);
+  });
+  
+  const ch = chaptersData[index];
+  document.getElementById('lorePanel').style.display = 'block';
+  
+  const titleEl = document.getElementById('chapterTitle');
+  titleEl.textContent = ch.title;
+  // Restart CSS animation for title
+  titleEl.classList.remove('fade-in-up');
+  void titleEl.offsetWidth; // trigger reflow
+  titleEl.classList.add('fade-in-up');
+
+  // Typewriter effect for content
+  const contentEl = document.getElementById('chapterContent');
+  clearInterval(typewriterInterval);
+  contentEl.textContent = '';
+  
+  let i = 0;
+  typewriterInterval = setInterval(() => {
+    if (i < ch.content.length) {
+      contentEl.textContent += ch.content.charAt(i);
+      i++;
+    } else {
+      clearInterval(typewriterInterval);
+    }
+  }, 20); // 20ms per character
+}
+
+fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
+  document.getElementById('brandName').textContent = d.event_name.toUpperCase();
+  document.title = 'Campaign — ' + d.event_name;
+});
+
+loadCampaign();
+</script>
+</body>
+</html>

@@ -1,0 +1,238 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>OmniCorp Admin Portal</title>
+<style>
+  :root {
+    --corp-blue: #0A369D;
+    --corp-light: #F4F7F6;
+    --corp-text: #333333;
+  }
+  body {
+    margin: 0;
+    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+    background-color: var(--corp-light);
+    color: var(--corp-text);
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    height: 100vh;
+    overflow: hidden;
+  }
+  .login-container {
+    background: white;
+    padding: 40px;
+    border-radius: 4px;
+    box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    width: 100%;
+    max-width: 400px;
+    position: relative;
+    transition: all 0.3s ease;
+  }
+  .logo-box {
+    text-align: center;
+    margin-bottom: 30px;
+  }
+  .logo-box h1 {
+    color: var(--corp-blue);
+    margin: 0;
+    font-size: 28px;
+    letter-spacing: -1px;
+  }
+  .logo-box p {
+    color: #888;
+    margin: 5px 0 0 0;
+    font-size: 14px;
+  }
+  .form-group {
+    margin-bottom: 20px;
+  }
+  label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+    font-size: 14px;
+    color: #555;
+  }
+  input {
+    width: 100%;
+    padding: 12px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    box-sizing: border-box;
+    font-size: 14px;
+    transition: border-color 0.2s;
+  }
+  input:focus {
+    outline: none;
+    border-color: var(--corp-blue);
+  }
+  button {
+    width: 100%;
+    padding: 12px;
+    background-color: var(--corp-blue);
+    color: white;
+    border: none;
+    border-radius: 4px;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background-color 0.2s;
+  }
+  button:hover {
+    background-color: #082A7A;
+  }
+  
+  .error-msg {
+    color: #D8000C;
+    background-color: #FFBABA;
+    padding: 10px;
+    border-radius: 4px;
+    font-size: 13px;
+    margin-bottom: 15px;
+    display: none;
+  }
+
+  /* Glitch Animations */
+  .glitch-active {
+    animation: shake 0.5s cubic-bezier(.36,.07,.19,.97) both;
+    background-color: #000;
+  }
+  .glitch-active * {
+    color: #0f0 !important;
+    border-color: #0f0 !important;
+    background-color: #000 !important;
+    font-family: monospace !important;
+  }
+  .glitch-active .logo-box h1::before,
+  .glitch-active .logo-box h1::after {
+    content: "CRITICAL FAILURE";
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: #000;
+  }
+  .glitch-active .logo-box h1::before {
+    left: 2px;
+    text-shadow: -1px 0 red;
+    animation: glitch-anim 2s infinite linear alternate-reverse;
+  }
+  .glitch-active .logo-box h1::after {
+    left: -2px;
+    text-shadow: -1px 0 blue;
+    animation: glitch-anim 3s infinite linear alternate-reverse;
+  }
+
+  @keyframes shake {
+    10%, 90% { transform: translate3d(-1px, 0, 0); }
+    20%, 80% { transform: translate3d(2px, 0, 0); }
+    30%, 50%, 70% { transform: translate3d(-4px, 0, 0); }
+    40%, 60% { transform: translate3d(4px, 0, 0); }
+  }
+
+  @keyframes glitch-anim {
+    0% { clip: rect(24px, 9999px, 9px, 0); }
+    20% { clip: rect(85px, 9999px, 11px, 0); }
+    40% { clip: rect(66px, 9999px, 72px, 0); }
+    60% { clip: rect(13px, 9999px, 93px, 0); }
+    80% { clip: rect(4px, 9999px, 34px, 0); }
+    100% { clip: rect(74px, 9999px, 98px, 0); }
+  }
+
+  .flag-box {
+    display: none;
+    margin-top: 20px;
+    padding: 20px;
+    background: #111;
+    border: 2px solid #0f0;
+    color: #0f0;
+    font-family: monospace;
+    font-size: 18px;
+    text-align: center;
+    box-shadow: 0 0 20px rgba(0, 255, 0, 0.5);
+    animation: fadeIn 1s forwards;
+  }
+
+  @keyframes fadeIn {
+    from { opacity: 0; transform: scale(0.8); }
+    to { opacity: 1; transform: scale(1); }
+  }
+</style>
+</head>
+<body>
+
+<div class="login-container" id="loginBox">
+  <div class="logo-box">
+    <h1>OmniCorp</h1>
+    <p>Global Administrative Portal</p>
+  </div>
+  
+  <div class="error-msg" id="errorMsg"></div>
+  
+  <form id="loginForm">
+    <div class="form-group">
+      <label for="username">Admin Username</label>
+      <input type="text" id="username" autocomplete="off" placeholder="Enter username">
+    </div>
+    <div class="form-group">
+      <label for="password">Password</label>
+      <input type="password" id="password" placeholder="Enter password">
+    </div>
+    <button type="submit" id="loginBtn">Authenticate</button>
+  </form>
+
+  <div class="flag-box" id="flagBox"></div>
+</div>
+
+<script>
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  
+  const username = document.getElementById('username').value;
+  const password = document.getElementById('password').value;
+  const errorMsg = document.getElementById('errorMsg');
+  const btn = document.getElementById('loginBtn');
+  
+  errorMsg.style.display = 'none';
+  btn.textContent = 'Authenticating...';
+  btn.disabled = true;
+
+  try {
+    const res = await fetch('/api/targets/alpha/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password })
+    });
+    
+    const data = await res.json();
+    
+    if (res.ok && data.success) {
+      // STAGE 1 SUCCESS - Redirect to dashboard
+      window.location.href = data.redirect;
+    } else {
+      // Failed hack / normal login failure
+      errorMsg.textContent = data.error || 'Invalid credentials.';
+      errorMsg.style.display = 'block';
+      
+      // Error shake
+      const box = document.getElementById('loginBox');
+      box.style.animation = 'shake 0.4s';
+      setTimeout(() => box.style.animation = '', 400);
+      
+      btn.textContent = 'Authenticate';
+      btn.disabled = false;
+    }
+  } catch (err) {
+    errorMsg.textContent = 'Connection error.';
+    errorMsg.style.display = 'block';
+    btn.textContent = 'Authenticate';
+    btn.disabled = false;
+  }
+});
+</script>
+</body>
+</html>
