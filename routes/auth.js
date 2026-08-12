@@ -1,6 +1,7 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
+const passport = require('passport');
 
 const router = express.Router();
 
@@ -55,6 +56,18 @@ router.post('/login', (req, res) => {
 router.post('/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
+
+// Google OAuth Routes
+router.get('/google', passport.authenticate('google', { scope: ['profile'] }));
+
+router.get('/google/callback', 
+  passport.authenticate('google', { failureRedirect: '/?error=google_failed' }),
+  function(req, res) {
+    req.session.teamId = req.user.id;
+    req.session.teamName = req.user.name;
+    res.redirect('/challenges.html');
+  }
+);
 
 router.post('/live-register', (req, res) => {
   if (!req.session.teamId) return res.status(401).json({ error: 'Not logged in.' });

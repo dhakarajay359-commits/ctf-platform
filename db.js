@@ -17,11 +17,17 @@ db.exec(`
 CREATE TABLE IF NOT EXISTS teams (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT UNIQUE NOT NULL,
-  password_hash TEXT NOT NULL,
+  password_hash TEXT,
+  google_id TEXT UNIQUE,
   is_banned INTEGER DEFAULT 0,
   created_at TEXT DEFAULT (datetime('now'))
-);
+);`);
 
+try {
+  db.exec('ALTER TABLE teams ADD COLUMN google_id TEXT UNIQUE');
+} catch (e) {}
+
+db.exec(`
 CREATE TABLE IF NOT EXISTS categories (
   id INTEGER PRIMARY KEY AUTOINCREMENT,
   name TEXT UNIQUE NOT NULL

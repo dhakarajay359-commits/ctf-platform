@@ -58,6 +58,19 @@ const sessionMiddleware = session({
 });
 app.use(sessionMiddleware);
 
+const passport = require('passport');
+app.use(passport.initialize());
+app.use(passport.session());
+
+// Passport serialization
+passport.serializeUser((user, done) => done(null, user.id));
+passport.deserializeUser((id, done) => {
+  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(id);
+  done(null, team);
+});
+
+require('./passport')(passport, db);
+
 const blueTeam = require('./middleware/blue_team')(io);
 app.use('/api', blueTeam);
 
@@ -243,6 +256,20 @@ setInterval(() => {
     }
   }
 }, 60000);
+
+// Auto-wipe Live Registration Data
+setInterval(() => {
+  try {
+    const row = db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
+    if (row && row.value) {
+      if (Date.now() > new Date(row.value).getTime()) {
+        db.prepare('DELETE FROM live_registration_submissions').run();
+      }
+    }
+  } catch (e) {
+    console.error('Error auto-wiping live registration data', e);
+  }
+}, 60 * 60 * 1000);
 
 server.listen(PORT, () => {
   console.log(`CTF platform running on http://localhost:${PORT}`);
