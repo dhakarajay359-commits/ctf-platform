@@ -119,6 +119,7 @@
         const input = document.createElement('input');
         input.type = field.type;
         input.name = field.label;
+        input.id = 'field_' + field.label.replace(/\s+/g, '_');
         if (field.required) input.required = true;
         
         div.appendChild(input);
