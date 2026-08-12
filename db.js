@@ -184,6 +184,12 @@ try {
   db.exec("ALTER TABLE teams ADD COLUMN members_count INTEGER DEFAULT 2");
 }
 
+try {
+  db.prepare('SELECT roster FROM teams LIMIT 1').get();
+} catch (e) {
+  db.exec("ALTER TABLE teams ADD COLUMN roster TEXT");
+}
+
 // Student Registration Fields Migration
 try {
   db.prepare('SELECT full_name FROM teams LIMIT 1').get();
