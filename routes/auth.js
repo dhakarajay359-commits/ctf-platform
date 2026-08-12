@@ -58,9 +58,25 @@ router.post('/logout', (req, res) => {
 });
 
 // Google OAuth Routes
-router.get('/google', passport.authenticate('google', { scope: ['profile'] }));
+router.get('/google', (req, res, next) => {
+  if (!process.env.GOOGLE_CLIENT_ID || !process.env.GOOGLE_CLIENT_SECRET) {
+    return res.send(`
+      <div style="font-family: monospace; padding: 20px; color: white; background: #1a1a2e; height: 100vh;">
+        <h2>Google Auth Not Configured</h2>
+        <p>The <b>GOOGLE_CLIENT_ID</b> and <b>GOOGLE_CLIENT_SECRET</b> environment variables are missing.</p>
+        <p>Please configure them in your .env file or Render Environment Variables to enable Google Sign-in.</p>
+        <a href="/" style="color: #00ffcc;">Return to Login</a>
+      </div>
+    `);
+  }
+  passport.authenticate('google', { scope: ['profile'] })(req, res, next);
+});
 
 router.get('/google/callback', 
+  (req, res, next) => {
+    if (!process.env.GOOGLE_CLIENT_ID) return res.redirect('/?error=not_configured');
+    next();
+  },
   passport.authenticate('google', { failureRedirect: '/?error=google_failed' }),
   function(req, res) {
     req.session.teamId = req.user.id;
