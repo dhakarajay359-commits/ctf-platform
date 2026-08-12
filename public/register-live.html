@@ -52,6 +52,16 @@
       <div id="errorAlert" class="alert alert-error hidden"></div>
       
       <form id="liveRegForm">
+        <div class="field-row">
+          <div>
+            <label>Team Name <span style="color:var(--danger)">*</span></label>
+            <input type="text" id="liveTeamName" required placeholder="Choose a team name">
+          </div>
+          <div>
+            <label>Password <span style="color:var(--danger)">*</span></label>
+            <input type="password" id="livePassword" required minlength="6" placeholder="Choose a secure password">
+          </div>
+        </div>
         <div id="dynamicFields"></div>
         <button type="submit" style="width:100%; margin-top:10px;">Submit Registration</button>
       </form>
@@ -122,9 +132,16 @@
 
   document.getElementById('liveRegForm').onsubmit = async (e) => {
     e.preventDefault();
-    const formData = new FormData(e.target);
-    const data = Object.fromEntries(formData.entries());
     
+    const payload = {
+      teamName: document.getElementById('liveTeamName').value,
+      password: document.getElementById('livePassword').value
+    };
+    schema.forEach(field => {
+      const el = document.getElementById('field_' + field.label.replace(/\s+/g, '_'));
+      if (el) payload[field.label] = el.type === 'checkbox' ? el.checked : el.value;
+    });
+
     const errAlert = document.getElementById('errorAlert');
     errAlert.classList.add('hidden');
     
@@ -132,7 +149,7 @@
       const res = await fetch('/api/registration/submit', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data)
+        body: JSON.stringify(payload)
       });
       const result = await res.json();
       

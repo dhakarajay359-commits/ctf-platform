@@ -1,5 +1,6 @@
 const express = require('express');
 const db = require('../db');
+const bcrypt = require('bcryptjs');
 
 module.exports = function () {
   const router = express.Router();
@@ -116,6 +117,27 @@ module.exports = function () {
     }
 
     try {
+      const teamName = data.teamName;
+      const password = data.password;
+      if (!teamName || !password || teamName.trim().length < 3 || password.length < 6) {
+        return res.status(400).json({ error: 'Team name must be 3+ characters and password 6+ characters.' });
+      }
+      
+      const existingTeam = db.prepare('SELECT id FROM teams WHERE name = ?').get(teamName.trim());
+      if (existingTeam) {
+        return res.status(409).json({ error: 'That team name is already taken.' });
+      }
+
+      const hash = bcrypt.hashSync(password, 10);
+      const info = db.prepare('INSERT INTO teams (name, password_hash, operative_type, members_count, full_name) VALUES (?, ?, ?, ?, ?)').run(teamName.trim(), hash, 'Syndicate', 2, data['Full Name'] || 'Live CTF Team');
+      
+      req.session.teamId = info.lastInsertRowid;
+      req.session.teamName = teamName.trim();
+
+      // Remove credentials from data before saving to submissions table
+      delete data.teamName;
+      delete data.password;
+
       db.prepare('INSERT INTO live_registration_submissions (data) VALUES (?)').run(JSON.stringify(data));
       res.json({ ok: true });
     } catch (e) {
