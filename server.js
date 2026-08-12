@@ -269,8 +269,8 @@ setInterval(async () => {
   }
 }, 60 * 60 * 1000);
 db.initDb().then(() => {
-  server.listen(PORT, () => {
-    console.log(`CTF platform running on http://localhost:${PORT}`);
+  server.listen(PORT, '0.0.0.0', () => {
+    console.log(`CTF platform running on http://0.0.0.0:${PORT}`);
     if (!process.env.ADMIN_PASSWORD) {
       console.warn('WARNING: ADMIN_PASSWORD not set in .env — set one before hosting publicly!');
     }
