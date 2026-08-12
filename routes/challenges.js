@@ -380,5 +380,29 @@ module.exports = function (io) {
     res.json(solves);
   });
 
+  // ---- Feedback System ----
+  router.get('/feedback/status', (req, res) => {
+    const existing = db.prepare('SELECT id FROM feedback WHERE team_id = ?').get(req.session.teamId);
+    res.json({ submitted: !!existing });
+  });
+
+  router.post('/feedback', (req, res) => {
+    const { rating, comments } = req.body;
+    if (!rating || rating < 1 || rating > 5) {
+      return res.status(400).json({ error: 'Rating must be between 1 and 5 stars.' });
+    }
+    const existing = db.prepare('SELECT id FROM feedback WHERE team_id = ?').get(req.session.teamId);
+    if (existing) {
+      return res.status(400).json({ error: 'You have already submitted feedback!' });
+    }
+    
+    db.prepare('INSERT INTO feedback (team_id, rating, comments) VALUES (?, ?, ?)').run(
+      req.session.teamId,
+      rating,
+      comments || ''
+    );
+    res.json({ ok: true });
+  });
+
   return router;
 };

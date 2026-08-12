@@ -306,6 +306,17 @@ module.exports = function (io) {
     res.json({ ok: true });
   });
 
+  // ---- Feedback System ----
+  router.get('/feedback', (req, res) => {
+    const fb = db.prepare(`
+      SELECT f.id, f.rating, f.comments, f.submitted_at, t.name as team_name 
+      FROM feedback f 
+      JOIN teams t ON f.team_id = t.id 
+      ORDER BY f.submitted_at DESC
+    `).all();
+    res.json(fb);
+  });
+
 
   // ---- Anomaly ----
   router.get('/anomaly', (req, res) => {

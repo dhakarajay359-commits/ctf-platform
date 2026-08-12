@@ -44,6 +44,7 @@
         <button data-section="security">Security 🛡</button>
         <button data-section="anomaly">Anomalies ⚠</button>
         <button data-section="chat">Support Chat</button>
+        <button data-section="feedback">Feedback</button>
         <button data-section="settings">Settings</button>
       </div>
 
@@ -212,6 +213,27 @@
           </div>
         </section>
 
+        <!-- FEEDBACK -->
+        <section id="section-feedback" class="hidden">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px;">
+            <h2>Post-CTF Feedback</h2>
+            <button onclick="loadFeedback()">Refresh Feedback</button>
+          </div>
+          <div style="overflow-x: auto;">
+            <table id="feedbackTable" style="width: 100%; text-align: left; border-collapse: collapse;">
+              <thead>
+                <tr style="border-bottom: 1px solid var(--border-color);">
+                  <th style="padding:8px;">Team</th>
+                  <th style="padding:8px;">Rating</th>
+                  <th style="padding:8px;">Comments</th>
+                  <th style="padding:8px;">Submitted At</th>
+                </tr>
+              </thead>
+              <tbody id="feedbackBody"></tbody>
+            </table>
+          </div>
+        </section>
+
         <!-- SETTINGS -->
         <section id="section-settings" class="hidden">
           <h2>Event settings</h2>
@@ -327,6 +349,7 @@ document.querySelectorAll('.admin-sidebar button').forEach(btn => {
     btn.classList.add('active');
     document.querySelectorAll('[id^="section-"]').forEach(s => s.classList.add('hidden'));
     document.getElementById('section-' + btn.dataset.section).classList.remove('hidden');
+    if (btn.dataset.section === 'feedback') loadFeedback();
   };
 });
 
