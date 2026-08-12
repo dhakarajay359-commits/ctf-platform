@@ -4,7 +4,7 @@
   "description": "",
   "main": "server.js",
   "scripts": {
-    "start": "node server.js",
+    "start": "node seed_all_challenges.js && node seed_chapters.js && node seed_chapters_2.js && node seed_chapters_3.js && node server.js",
     "dev": "node server.js"
   },
   "keywords": [
