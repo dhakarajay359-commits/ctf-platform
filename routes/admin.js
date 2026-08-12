@@ -298,6 +298,11 @@ module.exports = function (io) {
     res.json(result);
   });
 
+  router.delete('/registration-submissions', (req, res) => {
+    db.prepare('DELETE FROM live_registration_submissions').run();
+    res.json({ ok: true });
+  });
+
 
   // ---- Anomaly ----
   router.get('/anomaly', (req, res) => {

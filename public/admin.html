@@ -131,8 +131,13 @@
           </div>
           
           <hr style="border:none; border-top:1px solid var(--border-color); margin:20px 0;">
-          <h3>Submissions</h3>
-          <button id="refreshSubmissionsBtn" style="margin-bottom: 10px;">Refresh Data</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+            <h3>Submissions</h3>
+            <div>
+              <button id="refreshSubmissionsBtn" style="margin-right: 10px;">Refresh Data</button>
+              <button id="clearSubmissionsBtn" class="btn-danger" style="background:var(--danger); color:#fff; border:none; padding:8px 16px; border-radius:4px; cursor:pointer;">Clear All Submissions</button>
+            </div>
+          </div>
           <div style="overflow-x: auto;">
             <table id="regSubmissionsTable" style="width: 100%; text-align: left; border-collapse: collapse;">
               <thead><tr id="regSubmissionsHead"></tr></thead>
@@ -530,6 +535,18 @@ async function loadRegistrationSubmissions() {
 }
 
 document.getElementById('refreshSubmissionsBtn').onclick = loadRegistrationSubmissions;
+
+document.getElementById('clearSubmissionsBtn').onclick = async () => {
+  if (confirm('Are you absolutely sure you want to permanently delete ALL live CTF registration submissions? This cannot be undone.')) {
+    const res = await fetch('/api/admin/registration-submissions', { method: 'DELETE' });
+    if (res.ok) {
+      alert('All submissions cleared.');
+      loadRegistrationSubmissions();
+    } else {
+      alert('Failed to clear submissions.');
+    }
+  }
+};
 
 // ---------- Categories ----------
 async function loadCategories() {
