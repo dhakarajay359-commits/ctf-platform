@@ -201,18 +201,18 @@ try {
 
 // seed default settings (event name, start/end time, freeze time)
 const defaultSettings = {
-  event_name: 'CTF 2026',
+  event_name: 'ajay ctf 2026',
   start_time: '',
   end_time: '',
   freeze_time: '',
   registration_open: '1',
   ctf_status: 'practice',
-  live_registration_active: '0',
-  live_registration_schema: '[]',
-  live_registration_start: '',
-  live_registration_end: '',
-  live_ctf_event_start: '',
-  live_ctf_event_end: '',
+  live_registration_active: '1',
+  live_registration_schema: '[{"label":"Full Name","type":"text","required":true},{"label":"Email ID","type":"email","required":true},{"label":"Mobile Number","type":"number","required":true},{"label":"B.Tech Semester","type":"text","required":true},{"label":"College Name","type":"text","required":true}]',
+  live_registration_start: '2026-08-12T05:02:00.000Z',
+  live_registration_end: '2026-08-13T05:05:00.000Z',
+  live_ctf_event_start: '2026-08-14T04:30:00.000Z',
+  live_ctf_event_end: '2026-08-14T06:30:00.000Z',
   live_registration_title: 'Live CTF Registration',
   live_registration_description: 'Please fill out the form below to register for the live event.'
 };
