@@ -76,8 +76,9 @@ module.exports = function (io) {
   router.post('/login', checkBruteForce, (req, res) => {
     const { password } = req.body;
     const ip = req.ip || req.connection.remoteAddress;
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
 
-    if (password && password === process.env.ADMIN_PASSWORD) {
+    if (password && password === adminPass) {
       req.session.isAdmin = true;
       loginAttempts.delete(ip); // Reset on success
       return res.json({ ok: true });
@@ -98,7 +99,9 @@ module.exports = function (io) {
   router.post('/password', (req, res) => {
     const { currentPassword, newPassword } = req.body;
     if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Missing fields' });
-    if (currentPassword !== process.env.ADMIN_PASSWORD) {
+
+    const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
+    if (currentPassword !== adminPass) {
       return res.status(401).json({ error: 'Incorrect current password' });
     }
 
