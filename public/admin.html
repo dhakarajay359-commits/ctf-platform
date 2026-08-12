@@ -39,6 +39,7 @@
         <button data-section="challenges" class="active">Challenges</button>
         <button data-section="categories">Categories</button>
         <button data-section="teams">Teams</button>
+        <button data-section="registrations">Live Registrations</button>
         <button data-section="analytics">Analytics 📊</button>
         <button data-section="security">Security 🛡</button>
         <button data-section="anomaly">Anomalies ⚠</button>
@@ -70,6 +71,74 @@
         <section id="section-teams" class="hidden">
           <h2>Teams</h2>
           <div id="teamList" class="table-list"></div>
+        </section>
+
+        <!-- LIVE REGISTRATIONS -->
+        <section id="section-registrations" class="hidden">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="margin:0;">Live CTF Registrations</h2>
+          </div>
+          <p style="color:var(--text-muted);">Configure the public registration form and view submissions.</p>
+
+          <div style="background:var(--panel-bg); border:1px solid var(--border-color); padding: 15px; margin-bottom: 20px; border-radius: 4px;">
+            <h3>Form Configuration</h3>
+            <div class="field-row">
+              <div>
+                <label>Form Title</label>
+                <input id="regFormTitle" placeholder="e.g. Live CTF Registration">
+              </div>
+              <div>
+                <label>Release Form</label>
+                <select id="regFormActive">
+                  <option value="0">Closed (Hidden)</option>
+                  <option value="1">Active (Released)</option>
+                </select>
+              </div>
+            </div>
+            
+            <label>Description</label>
+            <textarea id="regFormDesc" style="width:100%; height:60px; background:transparent; border:1px solid var(--border-color); color:#fff; padding:10px; margin-bottom:10px;" placeholder="Instructions..."></textarea>
+            
+            <div class="field-row">
+              <div>
+                <label>Registration Start Time (Optional)</label>
+                <input type="datetime-local" id="regFormStart">
+              </div>
+              <div>
+                <label>Registration End Time (Optional)</label>
+                <input type="datetime-local" id="regFormEnd">
+              </div>
+            </div>
+
+            <div class="field-row">
+              <div>
+                <label>CTF Event Start Time (Optional)</label>
+                <input type="datetime-local" id="ctfEventStart">
+              </div>
+              <div>
+                <label>CTF Event End Time (Optional)</label>
+                <input type="datetime-local" id="ctfEventEnd">
+              </div>
+            </div>
+            
+            <hr style="border:none; border-top:1px solid var(--border-color); margin:15px 0;">
+            <h3>Form Fields</h3>
+            <div id="regFormFields" style="margin-bottom:15px;"></div>
+            <button id="addRegFieldBtn" class="btn-primary" style="margin-bottom:15px;">+ Add Field</button>
+            <br>
+            <button id="saveRegFormBtn" class="btn-primary">Save Form Configuration</button>
+            <div id="saveRegFormMsg" style="margin-top:10px;"></div>
+          </div>
+          
+          <hr style="border:none; border-top:1px solid var(--border-color); margin:20px 0;">
+          <h3>Submissions</h3>
+          <button id="refreshSubmissionsBtn" style="margin-bottom: 10px;">Refresh Data</button>
+          <div style="overflow-x: auto;">
+            <table id="regSubmissionsTable" style="width: 100%; text-align: left; border-collapse: collapse;">
+              <thead><tr id="regSubmissionsHead"></tr></thead>
+              <tbody id="regSubmissionsBody"></tbody>
+            </table>
+          </div>
         </section>
 
         <!-- ANALYTICS -->
@@ -147,6 +216,12 @@
           <select id="setRegOpen" style="margin-bottom:20px;">
             <option value="1">Open</option>
             <option value="0">Closed</option>
+          </select>
+          
+          <label for="setCtfStatus">CTF Engine Status</label>
+          <select id="setCtfStatus" style="margin-bottom:20px;">
+            <option value="practice">Practice Mode (Only practice challenges visible)</option>
+            <option value="live">Live Event (All challenges visible)</option>
           </select>
           
           <label for="setHeadline">Global Headline / Announcement</label>
@@ -260,6 +335,7 @@ async function initDashboard() {
   await loadCategories();
   await loadChallenges();
   await loadTeams();
+  await loadRegistrations();
   await loadAnomaly();
   await loadSettings();
   await loadAnalytics();
@@ -289,6 +365,171 @@ async function loadAnalytics() {
     </div>
   `).join('') || '<p>No data available.</p>';
 }
+
+// ---------- Registrations Form Builder & Submissions ----------
+let currentRegSchema = [];
+
+async function loadRegistrations() {
+  const settingsRes = await fetch('/api/admin/settings');
+  const settings = await settingsRes.json();
+  
+  function toLocalDatetime(isoString) {
+    if (!isoString) return '';
+    const d = new Date(isoString);
+    if (isNaN(d.getTime())) return isoString;
+    return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0,16);
+  }
+  
+  document.getElementById('regFormTitle').value = settings.live_registration_title || '';
+  document.getElementById('regFormDesc').value = settings.live_registration_description || '';
+  document.getElementById('regFormActive').value = settings.live_registration_active || '0';
+  document.getElementById('regFormStart').value = toLocalDatetime(settings.live_registration_start);
+  document.getElementById('regFormEnd').value = toLocalDatetime(settings.live_registration_end);
+  document.getElementById('ctfEventStart').value = toLocalDatetime(settings.live_ctf_event_start);
+  document.getElementById('ctfEventEnd').value = toLocalDatetime(settings.live_ctf_event_end);
+  
+  try {
+    currentRegSchema = JSON.parse(settings.live_registration_schema || '[]');
+  } catch (e) {
+    currentRegSchema = [];
+  }
+  
+  renderRegFields();
+  await loadRegistrationSubmissions();
+}
+
+function renderRegFields() {
+  const container = document.getElementById('regFormFields');
+  container.innerHTML = '';
+  
+  currentRegSchema.forEach((field, index) => {
+    const div = document.createElement('div');
+    div.style = "display:flex; gap:10px; margin-bottom:10px; align-items:flex-end; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 4px; border: 1px solid var(--border-color);";
+    
+    div.innerHTML = `
+      <div style="flex:1;">
+        <label>Field Label</label>
+        <input type="text" value="${escapeHtml(field.label)}" onchange="updateRegField(${index}, 'label', this.value)" placeholder="e.g. Email Address">
+      </div>
+      <div style="width: 150px;">
+        <label>Type</label>
+        <select onchange="updateRegField(${index}, 'type', this.value)">
+          <option value="text" ${field.type === 'text' ? 'selected' : ''}>Text Input</option>
+          <option value="email" ${field.type === 'email' ? 'selected' : ''}>Email</option>
+          <option value="number" ${field.type === 'number' ? 'selected' : ''}>Number</option>
+        </select>
+      </div>
+      <div style="display:flex; align-items:center; gap:5px; margin-bottom:10px;">
+        <input type="checkbox" ${field.required ? 'checked' : ''} onchange="updateRegField(${index}, 'required', this.checked)"> Required
+      </div>
+      <button class="btn-danger btn-sm" onclick="removeRegField(${index})" style="margin-bottom:5px;">Remove</button>
+    `;
+    container.appendChild(div);
+  });
+}
+
+window.updateRegField = function(index, key, value) {
+  if (currentRegSchema[index]) {
+    currentRegSchema[index][key] = value;
+  }
+}
+
+window.removeRegField = function(index) {
+  currentRegSchema.splice(index, 1);
+  renderRegFields();
+}
+
+document.getElementById('addRegFieldBtn').onclick = () => {
+  currentRegSchema.push({ label: 'New Field', type: 'text', required: true });
+  renderRegFields();
+};
+
+document.getElementById('saveRegFormBtn').onclick = async () => {
+  let startVal = document.getElementById('regFormStart').value;
+  let endVal = document.getElementById('regFormEnd').value;
+  let ctfStartVal = document.getElementById('ctfEventStart').value;
+  let ctfEndVal = document.getElementById('ctfEventEnd').value;
+  
+  if (startVal) startVal = new Date(startVal).toISOString();
+  if (endVal) endVal = new Date(endVal).toISOString();
+  if (ctfStartVal) ctfStartVal = new Date(ctfStartVal).toISOString();
+  if (ctfEndVal) ctfEndVal = new Date(ctfEndVal).toISOString();
+
+  const payload = {
+    live_registration_title: document.getElementById('regFormTitle').value,
+    live_registration_description: document.getElementById('regFormDesc').value,
+    live_registration_active: document.getElementById('regFormActive').value,
+    live_registration_start: startVal,
+    live_registration_end: endVal,
+    live_ctf_event_start: ctfStartVal,
+    live_ctf_event_end: ctfEndVal,
+    live_registration_schema: JSON.stringify(currentRegSchema)
+  };
+  
+  const res = await fetch('/api/admin/settings', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload)
+  });
+  
+  const msg = document.getElementById('saveRegFormMsg');
+  if (res.ok) {
+    msg.style.color = 'var(--success)';
+    msg.textContent = 'Form configuration saved!';
+    setTimeout(() => msg.textContent='', 3000);
+  } else {
+    msg.style.color = 'var(--danger)';
+    msg.textContent = 'Failed to save configuration.';
+  }
+};
+
+async function loadRegistrationSubmissions() {
+  const res = await fetch('/api/admin/registration-submissions');
+  const submissions = await res.json();
+  
+  const thead = document.getElementById('regSubmissionsHead');
+  const tbody = document.getElementById('regSubmissionsBody');
+  
+  thead.innerHTML = '';
+  tbody.innerHTML = '';
+  
+  if (submissions.length === 0) {
+    tbody.innerHTML = '<tr><td style="padding:10px; color:var(--text-muted);">No submissions yet.</td></tr>';
+    return;
+  }
+  
+  // Extract all unique headers from schema
+  const headers = ['Submitted At'];
+  currentRegSchema.forEach(f => {
+    if (!headers.includes(f.label)) headers.push(f.label);
+  });
+  
+  headers.forEach(h => {
+    const th = document.createElement('th');
+    th.textContent = h;
+    th.style = "padding: 10px; border-bottom: 1px solid var(--border-color); color: var(--primary); font-family: var(--mono); text-transform: uppercase; font-size: 12px;";
+    thead.appendChild(th);
+  });
+  
+  submissions.forEach(sub => {
+    const tr = document.createElement('tr');
+    headers.forEach(h => {
+      const td = document.createElement('td');
+      td.style = "padding: 10px; border-bottom: 1px solid rgba(255,255,255,0.05);";
+      if (h === 'Submitted At') {
+        let st = sub.submitted_at || '';
+        if (st && !st.includes('T')) st = st.replace(' ', 'T');
+        if (st && !st.endsWith('Z')) st += 'Z';
+        td.textContent = new Date(st).toLocaleString();
+      } else {
+        td.textContent = sub.data[h] || '-';
+      }
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+}
+
+document.getElementById('refreshSubmissionsBtn').onclick = loadRegistrationSubmissions;
 
 // ---------- Categories ----------
 async function loadCategories() {
@@ -400,6 +641,11 @@ function openEditor(challenge) {
         </select>
       </div>
     </div>
+
+    <label style="display:flex; align-items:center; gap:8px; margin-bottom:15px; cursor:pointer;">
+      <input type="checkbox" id="fIsPractice" style="width:auto; margin:0;" ${challenge?.is_practice ? 'checked' : ''}>
+      Is Practice Challenge? (Only visible in Practice Mode)
+    </label>
 
     <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:15px;">
       <label for="fDescription" style="margin-bottom:0;">Question / Description (Markdown supported)</label>
@@ -528,6 +774,7 @@ async function saveChallenge() {
   const points = document.getElementById('fPoints').value;
   const difficulty = document.getElementById('fDifficulty').value;
   const visible = document.getElementById('fVisible').value === '1';
+  const is_practice = document.getElementById('fIsPractice').checked;
   const requires = document.getElementById('fRequires').value || null;
   const description = document.getElementById('fDescription').value;
   const link = document.getElementById('fLink').value.trim();
@@ -546,7 +793,7 @@ async function saveChallenge() {
     return;
   }
 
-  const payload = { title, categoryId, points, difficulty, visible, requires, description, link, flag, hints };
+  const payload = { title, categoryId, points, difficulty, visible, isPractice: is_practice, requires, description, link, flag, hints };
 
   let res;
   if (editingChallengeId) {
@@ -690,6 +937,7 @@ async function loadSettings() {
   const settings = await fetch('/api/admin/settings').then(r => r.json());
   document.getElementById('setEventName').value = settings.event_name || '';
   document.getElementById('setRegOpen').value = settings.registration_open || '1';
+  document.getElementById('setCtfStatus').value = settings.ctf_status || 'practice';
   const headlineInput = document.getElementById('setHeadline');
   if (headlineInput) headlineInput.value = settings.headline || '';
   if (settings.ctf_start_time) {
@@ -720,12 +968,14 @@ document.getElementById('resetDataBtn').onclick = async () => {
 };
 
 document.getElementById('saveSettingsBtn').onclick = async () => {
-  const event_name = document.getElementById('setEventName').value;
-  const registration_open = document.getElementById('setRegOpen').value;
+  const eventName = document.getElementById('setEventName').value;
+  const regOpen = document.getElementById('setRegOpen').value;
+  const ctfStatus = document.getElementById('setCtfStatus').value;
   const headline = document.getElementById('setHeadline').value;
+
   const res = await fetch('/api/admin/settings', {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ event_name, registration_open, headline })
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ event_name: eventName, registration_open: regOpen, headline, ctf_status: ctfStatus })
   });
   const msg = document.getElementById('settingsMsg');
   msg.innerHTML = res.ok ? '<div class="alert alert-success">Saved.</div>' : '<div class="alert alert-error">Failed to save.</div>';

@@ -49,13 +49,16 @@ module.exports = function (io) {
   // List all visible challenges, with per-team solve/hint state
   router.get('/', checkCTFStarted, (req, res) => {
     const teamId = req.session.teamId || null;
+    
+    const statusRow = db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
+    const ctfStatus = statusRow ? statusRow.value : 'practice';
 
     const challenges = db.prepare(`
       SELECT c.id, c.title, c.category_id, cat.name AS category, c.description,
-             c.points, c.difficulty, c.link, c.requires, c.docker_image
+             c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice
       FROM challenges c
       LEFT JOIN categories cat ON cat.id = c.category_id
-      WHERE c.visible = 1
+      WHERE c.visible = 1 ${ctfStatus === 'practice' ? 'AND c.is_practice = 1' : ''}
       ORDER BY cat.name, c.points ASC
     `).all();
 

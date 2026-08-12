@@ -19,6 +19,10 @@
       <button id="tabLogin" class="active">Sign in</button>
       <button id="tabRegister">Register team</button>
     </div>
+    
+    <div id="upcomingCtfBanner" style="text-align:center; margin-bottom: 20px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; display: none;">
+      <!-- Dynamic CTF schedule will be injected here -->
+    </div>
 
     <div id="alertBox" class="alert alert-error hidden"></div>
 
@@ -155,6 +159,48 @@ fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
   document.getElementById('eventName').textContent = d.event_name;
   document.title = d.event_name + ' — Access';
 });
+
+async function loadUpcomingCtfInfo() {
+  try {
+    const res = await fetch('/api/registration/info');
+    const data = await res.json();
+    
+    // Only show banner if there is a start time or active registration
+    if (data.active || data.ctf_start || data.registration_start) {
+      const banner = document.getElementById('upcomingCtfBanner');
+      banner.style.display = 'block';
+      
+      let html = `<div style="color: var(--primary); font-family: var(--mono); text-transform: uppercase; font-size: 12px; margin-bottom: 5px;">Upcoming Event</div>`;
+      html += `<h2 style="margin: 0 0 10px 0; font-size: 18px;">${escapeHtml(data.title)}</h2>`;
+      
+      if (data.ctf_start) {
+        const startStr = new Date(data.ctf_start).toLocaleString();
+        const endStr = data.ctf_end ? new Date(data.ctf_end).toLocaleString() : 'TBD';
+        html += `<div style="font-size: 14px; margin-bottom: 5px; color: #fff;">CTF Runs: ${startStr} - ${endStr}</div>`;
+      }
+      
+      if (data.registration_start) {
+        const startStr = new Date(data.registration_start).toLocaleString();
+        const endStr = data.registration_end ? new Date(data.registration_end).toLocaleString() : 'TBD';
+        html += `<div style="font-size: 13px; color: var(--text-muted); margin-bottom: 10px;">Registration: ${startStr} - ${endStr}</div>`;
+      }
+      
+      html += `<a href="/register-live.html" class="btn-primary" style="display:inline-block; padding: 8px 16px; font-size: 13px; text-decoration: none;">View Registration</a>`;
+      
+      banner.innerHTML = html;
+    }
+  } catch (e) {
+    console.error('Failed to load CTF info', e);
+  }
+}
+
+function escapeHtml(s) {
+  const div = document.createElement('div');
+  div.textContent = s;
+  return div.innerHTML;
+}
+
+loadUpcomingCtfInfo();
 </script>
 </body>
 </html>

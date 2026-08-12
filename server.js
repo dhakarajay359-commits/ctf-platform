@@ -70,11 +70,14 @@ app.use('/api/targets', require('./routes/targets')());
 app.use('/api/campaign', require('./routes/campaign')());
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/chat', require('./routes/chat')(io));
+app.use('/api/registration', require('./routes/registration')());
 
 app.get('/api/timer', (req, res) => {
   const row = db.prepare("SELECT value FROM settings WHERE key = 'ctf_end_time'").get();
   res.json({ endTime: row && row.value ? Number(row.value) : null });
 });
+
+app.get('/favicon.ico', (req, res) => res.status(204).end());
 
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/node_modules', express.static(path.join(__dirname, 'node_modules')));

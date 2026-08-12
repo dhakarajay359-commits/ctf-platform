@@ -1,0 +1,155 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Live CTF Registration</title>
+<link rel="stylesheet" href="/css/style.css?v=4">
+<script src="/socket.io/socket.io.js"></script>
+<style>
+  .reg-container { max-width: 600px; margin: 40px auto; }
+  .reg-box { background: var(--panel-bg); border: 1px solid var(--border-color); padding: 30px; border-radius: var(--radius); }
+  .reg-field { margin-bottom: 20px; }
+  .reg-field label { display: block; margin-bottom: 8px; color: var(--text-muted); font-family: var(--mono); text-transform: uppercase; font-size: 12px; }
+  .reg-field input, .reg-field select { width: 100%; }
+</style>
+</head>
+<body>
+
+<!-- Basic Header matching other pages -->
+<header>
+  <div style="font-weight:bold; font-size:18px; font-family:var(--mono);">
+    <a href="/index.html" style="color:#fff; text-decoration:none;">CTF Platform</a>
+  </div>
+  <div style="display:flex; gap:16px;">
+    <a href="/index.html">← Back to Login</a>
+  </div>
+</header>
+
+<main>
+  <div class="reg-container">
+    <div id="loadingState" style="text-align:center; padding: 40px; color: var(--text-muted);">
+      Loading registration form...
+    </div>
+
+    <div id="scheduleBanner" style="text-align:center; margin-bottom: 20px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; display: none;"></div>
+    <div id="closedState" class="reg-box hidden" style="text-align:center;">
+      <h2 style="color:var(--danger); margin-top:0;">Registration Closed</h2>
+      <p style="color:var(--text-muted); margin-bottom:0;">Registration is not yet open. Please wait for the admin to release the form or check back later.</p>
+    </div>
+
+    <div id="successState" class="reg-box hidden" style="text-align:center;">
+      <h2 style="color:var(--success); margin-top:0;">Registration Complete!</h2>
+      <p style="color:var(--text-muted); margin-bottom:0;">Your registration has been submitted successfully.</p>
+      <br>
+      <a href="/index.html" class="btn-primary" style="display:inline-block; text-decoration:none;">Return to Home</a>
+    </div>
+
+    <div id="activeState" class="reg-box hidden">
+      <h2 id="formTitle" style="margin-top:0; margin-bottom:10px;"></h2>
+      <p id="formDesc" style="color:var(--text-muted); margin-bottom:30px;"></p>
+      
+      <div id="errorAlert" class="alert alert-error hidden"></div>
+      
+      <form id="liveRegForm">
+        <div id="dynamicFields"></div>
+        <button type="submit" style="width:100%; margin-top:10px;">Submit Registration</button>
+      </form>
+    </div>
+  </div>
+</main>
+
+<script>
+  let schema = [];
+  
+  async function loadForm() {
+    try {
+      const res = await fetch('/api/registration/form');
+      const data = await res.json();
+      
+      document.getElementById('loadingState').classList.add('hidden');
+      
+      // Build schedule banner
+      if (data.ctf_start || data.registration_start) {
+        const banner = document.getElementById('scheduleBanner');
+        banner.style.display = 'block';
+        let html = '';
+        if (data.ctf_start) {
+          const startStr = new Date(data.ctf_start).toLocaleString();
+          const endStr = data.ctf_end ? new Date(data.ctf_end).toLocaleString() : 'TBD';
+          html += `<div style="font-size: 14px; margin-bottom: 5px; color: #fff;"><strong>CTF Runs:</strong> ${startStr} - ${endStr}</div>`;
+        }
+        if (data.registration_start) {
+          const startStr = new Date(data.registration_start).toLocaleString();
+          const endStr = data.registration_end ? new Date(data.registration_end).toLocaleString() : 'TBD';
+          html += `<div style="font-size: 13px; color: var(--text-muted);"><strong>Registration Window:</strong> ${startStr} - ${endStr}</div>`;
+        }
+        banner.innerHTML = html;
+      }
+      
+      if (!data.active) {
+        document.getElementById('closedState').classList.remove('hidden');
+        return;
+      }
+      
+      document.getElementById('activeState').classList.remove('hidden');
+      document.getElementById('formTitle').textContent = data.title;
+      document.getElementById('formDesc').textContent = data.description;
+      schema = data.schema;
+      
+      const container = document.getElementById('dynamicFields');
+      schema.forEach((field, i) => {
+        const div = document.createElement('div');
+        div.className = 'reg-field';
+        
+        const label = document.createElement('label');
+        label.textContent = field.label + (field.required ? ' *' : '');
+        div.appendChild(label);
+        
+        const input = document.createElement('input');
+        input.type = field.type;
+        input.name = field.label;
+        if (field.required) input.required = true;
+        
+        div.appendChild(input);
+        container.appendChild(div);
+      });
+      
+    } catch (e) {
+      document.getElementById('loadingState').textContent = 'Failed to load form.';
+    }
+  }
+
+  document.getElementById('liveRegForm').onsubmit = async (e) => {
+    e.preventDefault();
+    const formData = new FormData(e.target);
+    const data = Object.fromEntries(formData.entries());
+    
+    const errAlert = document.getElementById('errorAlert');
+    errAlert.classList.add('hidden');
+    
+    try {
+      const res = await fetch('/api/registration/submit', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(data)
+      });
+      const result = await res.json();
+      
+      if (!res.ok) {
+        errAlert.textContent = result.error || 'Submission failed.';
+        errAlert.classList.remove('hidden');
+      } else {
+        document.getElementById('activeState').classList.add('hidden');
+        document.getElementById('successState').classList.remove('hidden');
+      }
+    } catch (e) {
+      errAlert.textContent = 'Network error.';
+      errAlert.classList.remove('hidden');
+    }
+  };
+
+  loadForm();
+</script>
+</body>
+</html>

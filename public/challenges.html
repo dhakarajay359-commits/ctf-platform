@@ -279,12 +279,19 @@
     <a href="/scoreboard.html">Scoreboard</a>
     <a href="/payloads.html">Payloads</a>
     <a href="/campaign.html">Campaign</a>
+    <button id="liveRegisterBtn" class="btn-primary btn-sm hidden" style="margin-left:16px;">Register for Live CTF</button>
+    <button id="zenModeBtn" class="btn-ghost btn-sm" style="margin-left:16px;" onclick="toggleZenMode()">Zen Mode</button>
     <button id="profileBtn" class="btn-ghost btn-sm" style="margin-left:16px;">My Profile</button>
     <button id="logoutBtn" class="btn-ghost btn-sm">Sign out</button>
   </div>
 </div>
 
 <main>
+  <div id="practiceBanner" class="challenge-card hidden" style="text-align:center; font-size: 16px; margin-bottom: 24px; min-height: auto; padding: 12px 16px; display: flex; justify-content: center; align-items: center; border-color: var(--primary);">
+    <strong style="color:var(--primary); font-family:var(--mono); letter-spacing:1px; margin-right: 8px;">PRACTICE MODE:</strong>
+    <span style="color:var(--text-main);">The live CTF has not started yet. Practice challenges are available.</span>
+  </div>
+
   <div id="anomalyBanner" class="challenge-card hard hidden" style="text-align:center; font-size: 16px; margin-bottom: 24px; min-height: auto; padding: 12px 16px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px;">
     <strong style="color:var(--danger); font-family:var(--mono); letter-spacing:1px; text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); display: flex; align-items: center; gap: 4px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -312,17 +319,10 @@
 
   <div class="category-tabs" id="categoryTabs"></div>
 
-  <!-- Threat Intel Feed -->
-  <div style="position: fixed; left: 20px; bottom: 20px; width: 300px; height: 250px; background: rgba(5, 8, 12, 0.85); border: 1px solid var(--border-color); border-radius: 4px; z-index: 1000; display: flex; flex-direction: column; font-family: var(--mono); font-size: 11px; pointer-events: auto;">
-    <div style="background: rgba(0, 210, 255, 0.1); padding: 5px 10px; color: var(--primary); border-bottom: 1px solid var(--border-color); font-weight: bold; letter-spacing: 1px;">THREAT INTEL FEED</div>
-    <div id="threatFeed" style="flex: 1; padding: 10px; overflow-y: auto; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
-      <div>[SYS] Intercepting network traffic...</div>
-    </div>
-  </div>
 
   <!-- Live Widgets -->
-  <div id="liveWidgetsContainer" style="margin-top: 30px; margin-bottom: 10px; display: none;">
-    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(400px, 1fr)); gap: 24px;">
+  <div id="liveWidgetsContainer" style="margin-top: 30px; margin-bottom: 10px;">
+    <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr)); gap: 24px;">
       <!-- Trending Heat -->
       <div>
         <div onclick="document.getElementById('trendingWidgetGrid').classList.toggle('hidden')" style="cursor: pointer; font-family: var(--mono); font-size: 13px; color: var(--danger); letter-spacing: 2px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; user-select: none;">
@@ -340,6 +340,19 @@
           <span style="margin-left:auto; font-size:10px;">[▼]</span>
         </div>
         <div id="mostSolvedWidgetGrid" class="hidden" style="display: flex; flex-direction: column; gap: 16px;"></div>
+      </div>
+      <!-- Threat Intel Feed Widget -->
+      <div>
+        <div onclick="document.getElementById('threatWidgetContainer').classList.toggle('hidden')" style="cursor: pointer; font-family: var(--mono); font-size: 13px; color: var(--primary); letter-spacing: 2px; margin-bottom: 16px; display: flex; align-items: center; gap: 8px; user-select: none;">
+          <span class="live-dot" style="background: var(--primary); box-shadow: 0 0 8px var(--primary);"></span>
+          THREAT INTEL FEED
+          <span style="margin-left:auto; font-size:10px;">[▼]</span>
+        </div>
+        <div id="threatWidgetContainer" class="hidden" style="display: flex; flex-direction: column; height: 300px; background: rgba(5, 8, 12, 0.5); border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--mono); font-size: 11px;">
+          <div id="threatFeed" style="flex: 1; padding: 10px; overflow-y: auto; color: var(--text-muted); display: flex; flex-direction: column; gap: 4px;">
+            <div>[SYS] Intercepting network traffic...</div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -396,6 +409,43 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
+<!-- Live CTF Registration Modal -->
+<div class="modal-backdrop hidden" id="liveRegisterModal">
+  <div class="modal" style="max-width: 500px;">
+    <button class="modal-close" onclick="document.getElementById('liveRegisterModal').classList.add('hidden')">×</button>
+    <h2>Live CTF Registration</h2>
+    <p style="color:var(--text-muted); margin-bottom: 20px;">Please provide your details to participate in the upcoming live event.</p>
+    <form id="liveRegisterForm" style="display:flex; flex-direction:column; gap:10px;">
+      <label>Full Name</label>
+      <input id="lrFullName" required>
+      <label>Student ID</label>
+      <input id="lrStudentId" required>
+      <label>College ID / Name</label>
+      <input id="lrCollegeId" required>
+      <div id="lrError" class="alert alert-error hidden"></div>
+      <button type="submit" class="btn-primary" style="margin-top: 10px;">Submit Registration</button>
+    </form>
+  </div>
+</div>
+
+<!-- Live CTF Waiting Room Modal -->
+<div class="modal-backdrop hidden" id="waitingRoomModal" style="z-index: 9999;">
+  <div class="modal challenge-card hard" style="max-width: 600px; text-align: center; padding: 40px;">
+    <div style="font-family: var(--mono); font-size: 14px; color: var(--success); letter-spacing: 2px; margin-bottom: 20px;">REGISTRATION SUCCESSFUL</div>
+    <h1 style="color: #fff; margin-bottom: 10px;">Waiting Room</h1>
+    <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 30px;">The Live CTF has not started yet. Please wait for the administrator to begin the event.</p>
+    
+    <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 20px; border-radius: 4px; display: inline-block;">
+      <div style="font-family: var(--mono); font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">SCHEDULED START</div>
+      <div id="waitingRoomTime" style="font-size: 24px; color: var(--primary); font-weight: bold;">TBD</div>
+    </div>
+    
+    <div style="margin-top: 40px;">
+      <button class="btn-ghost" onclick="document.getElementById('waitingRoomModal').classList.add('hidden')">Return to Practice Area</button>
+    </div>
+  </div>
+</div>
+
 <script>
 let challenges = [];
 let activeCategory = 'All';
@@ -457,7 +507,8 @@ async function loadTrendingHeat() {
     const solvedGrid = document.getElementById('mostSolvedWidgetGrid');
     
     if ((trending.length === 0 || trending[0].attempts === 0) && (mostSolved.length === 0 || mostSolved[0].solves === 0)) {
-      container.style.display = 'none';
+      trendingGrid.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No activity yet.</div>';
+      solvedGrid.innerHTML = '<div style="color:var(--text-muted); font-size:12px;">No solves yet.</div>';
       return;
     }
     
@@ -1074,6 +1125,9 @@ fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
     document.getElementById('brandName').textContent = d.event_name.toUpperCase() + ' PLATFORM';
     document.title = 'Challenges — ' + d.event_name;
   }
+  if (d.ctf_status === 'practice') {
+    document.getElementById('practiceBanner').classList.remove('hidden');
+  }
   if (d.headline && d.headline.trim() !== '') {
     const hlCard = document.getElementById('headlineCard');
     hlCard.classList.remove('hidden');
@@ -1093,6 +1147,58 @@ fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
 });
 
 const socket = io();
+
+// Live CTF Registration Logic
+document.getElementById('liveRegisterBtn').onclick = () => {
+  document.getElementById('liveRegisterModal').classList.remove('hidden');
+};
+
+document.getElementById('liveRegisterForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const fullName = document.getElementById('lrFullName').value;
+  const studentId = document.getElementById('lrStudentId').value;
+  const collegeId = document.getElementById('lrCollegeId').value;
+  const res = await fetch('/api/auth/live-register', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ fullName, studentId, collegeId })
+  });
+  if (res.ok) {
+    window.location.reload();
+  } else {
+    const data = await res.json();
+    document.getElementById('lrError').textContent = data.error || 'Registration failed.';
+    document.getElementById('lrError').classList.remove('hidden');
+  }
+});
+
+Promise.all([
+  fetch('/api/auth/me').then(r => r.json()),
+  fetch('/api/auth/public-settings').then(r => r.json())
+]).then(([me, settings]) => {
+  if (me.team && !me.team.is_registered) {
+    document.getElementById('liveRegisterBtn').classList.remove('hidden');
+  } else if (me.team && me.team.is_registered && settings.ctf_status === 'practice') {
+    document.getElementById('waitingRoomModal').classList.remove('hidden');
+    if (settings.start_time) {
+      document.getElementById('waitingRoomTime').textContent = new Date(Number(settings.start_time)).toLocaleString();
+    }
+  }
+});
+
+// Zen Mode Logic
+let zenMode = localStorage.getItem('zenMode') === 'true';
+function updateZenMode() {
+  document.body.classList.toggle('zen-mode', zenMode);
+  const btn = document.getElementById('zenModeBtn');
+  if (btn) btn.textContent = zenMode ? 'Zen Mode: ON' : 'Zen Mode: OFF';
+  window.zenModeActive = zenMode;
+}
+function toggleZenMode() {
+  zenMode = !zenMode;
+  localStorage.setItem('zenMode', zenMode);
+  updateZenMode();
+}
+updateZenMode();
 
 function logThreat(msg, color = 'var(--text-main)') {
   const feed = document.getElementById('threatFeed');
@@ -1169,7 +1275,6 @@ function renderAnomaly() {
   anomalyInterval = setInterval(updateTimer, 1000);
 }
 </script>
-<script src="/js/chart.js"></script>
 <script src="/js/chat.js"></script>
 <script src="/js/sfx.js"></script>
 <script src="/js/terminal.js"></script>

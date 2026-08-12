@@ -1327,3 +1327,14 @@ input:focus, select:focus, textarea:focus {
   animation: fireFlicker 0.1s infinite alternate;
   font-weight: bold;
 }
+
+
+/* Zen Mode */
+body.zen-mode .crt-overlay {
+  display: none !important;
+}
+body.zen-mode .glitch-text {
+  animation: none !important;
+  text-shadow: none !important;
+  transform: none !important;
+}

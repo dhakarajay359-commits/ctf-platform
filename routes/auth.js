@@ -56,19 +56,33 @@ router.post('/logout', (req, res) => {
   req.session.destroy(() => res.json({ ok: true }));
 });
 
+router.post('/live-register', (req, res) => {
+  if (!req.session.teamId) return res.status(401).json({ error: 'Not logged in.' });
+  const { fullName, studentId, collegeId } = req.body;
+  if (!fullName || !studentId || !collegeId) {
+    return res.status(400).json({ error: 'All fields are required.' });
+  }
+  
+  db.prepare('UPDATE teams SET full_name = ?, student_id = ?, college_id = ? WHERE id = ?')
+    .run(fullName.trim(), studentId.trim(), collegeId.trim(), req.session.teamId);
+    
+  res.json({ ok: true });
+});
+
 router.get('/public-settings', (req, res) => {
   res.json({
     event_name: getSetting('event_name') || 'CTF',
     start_time: getSetting('start_time') || '',
     end_time: getSetting('end_time') || '',
     headline: getSetting('headline') || '',
+    ctf_status: getSetting('ctf_status') || 'practice',
     registration_open: getSetting('registration_open') === '1'
   });
 });
 
 router.get('/me', (req, res) => {
   if (req.session.teamId) {
-    const team = db.prepare('SELECT name, operative_type, members_count, roster FROM teams WHERE id = ?').get(req.session.teamId);
+    const team = db.prepare('SELECT name, operative_type, members_count, roster, full_name FROM teams WHERE id = ?').get(req.session.teamId);
     if (!team) return res.json({ team: null, isAdmin: !!req.session.isAdmin });
     
     return res.json({ 
@@ -77,7 +91,8 @@ router.get('/me', (req, res) => {
         name: team.name,
         operative_type: team.operative_type,
         members_count: team.members_count,
-        roster: team.roster ? JSON.parse(team.roster) : []
+        roster: team.roster ? JSON.parse(team.roster) : [],
+        is_registered: !!(team.full_name && team.full_name.trim() !== '')
       }, 
       isAdmin: !!req.session.isAdmin 
     });

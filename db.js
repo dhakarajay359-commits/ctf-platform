@@ -163,13 +163,51 @@ try {
   db.exec("ALTER TABLE teams ADD COLUMN members_count INTEGER DEFAULT 2");
 }
 
+// Student Registration Fields Migration
+try {
+  db.prepare('SELECT full_name FROM teams LIMIT 1').get();
+} catch (e) {
+  db.exec("ALTER TABLE teams ADD COLUMN full_name TEXT DEFAULT ''");
+  db.exec("ALTER TABLE teams ADD COLUMN student_id TEXT DEFAULT ''");
+  db.exec("ALTER TABLE teams ADD COLUMN college_id TEXT DEFAULT ''");
+}
+
+// Practice Mode Migration
+try {
+  db.prepare('SELECT is_practice FROM challenges LIMIT 1').get();
+} catch (e) {
+  db.exec("ALTER TABLE challenges ADD COLUMN is_practice INTEGER DEFAULT 0");
+}
+
+// Live Registration Migrations
+try {
+  db.prepare('SELECT id FROM live_registration_submissions LIMIT 1').get();
+} catch (e) {
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS live_registration_submissions (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      data TEXT NOT NULL,
+      submitted_at TEXT DEFAULT (datetime('now'))
+    )
+  `);
+}
+
 // seed default settings (event name, start/end time, freeze time)
 const defaultSettings = {
   event_name: 'CTF 2026',
   start_time: '',
   end_time: '',
   freeze_time: '',
-  registration_open: '1'
+  registration_open: '1',
+  ctf_status: 'practice',
+  live_registration_active: '0',
+  live_registration_schema: '[]',
+  live_registration_start: '',
+  live_registration_end: '',
+  live_ctf_event_start: '',
+  live_ctf_event_end: '',
+  live_registration_title: 'Live CTF Registration',
+  live_registration_description: 'Please fill out the form below to register for the live event.'
 };
 const insertSetting = db.prepare('INSERT OR IGNORE INTO settings (key, value) VALUES (?, ?)');
 for (const [k, v] of Object.entries(defaultSettings)) insertSetting.run(k, v);

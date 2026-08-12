@@ -21,15 +21,18 @@ function playTone(freq, type, duration, vol) {
 }
 
 window.playHoverSound = () => {
+  if (window.zenModeActive) return;
   playTone(800, 'sine', 0.05, 0.01);
 };
 
 window.playClickSound = () => {
+  if (window.zenModeActive) return;
   playTone(1200, 'square', 0.05, 0.02);
   setTimeout(() => playTone(800, 'square', 0.05, 0.02), 30);
 };
 
 window.playAlertSound = () => {
+  if (window.zenModeActive) return;
   // Deep bass siren
   if (audioCtx.state === 'suspended') audioCtx.resume();
   const osc = audioCtx.createOscillator();

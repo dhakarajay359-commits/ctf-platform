@@ -162,7 +162,7 @@ module.exports = function (io) {
   });
 
   router.post('/challenges', (req, res) => {
-    const { title, categoryId, description, points, flag, difficulty, link, visible, hints, requires } = req.body;
+    const { title, categoryId, description, points, flag, difficulty, link, visible, hints, requires, isPractice } = req.body;
 
     if (!title || !description || !flag || !points) {
       return res.status(400).json({ error: 'Title, description, points, and flag are required.' });
@@ -171,8 +171,8 @@ module.exports = function (io) {
     const flagHash = bcrypt.hashSync(String(flag).trim(), 10);
 
     const info = db.prepare(`
-      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title.trim(),
       categoryId || null,
@@ -182,7 +182,8 @@ module.exports = function (io) {
       difficulty || 'medium',
       link || null,
       visible === false ? 0 : 1,
-      requires ? Number(requires) : null
+      requires ? Number(requires) : null,
+      isPractice ? 1 : 0
     );
 
     const challengeId = info.lastInsertRowid;
@@ -199,7 +200,7 @@ module.exports = function (io) {
 
   router.put('/challenges/:id', (req, res) => {
     const id = Number(req.params.id);
-    const { title, categoryId, description, points, flag, difficulty, link, visible, requires } = req.body;
+    const { title, categoryId, description, points, flag, difficulty, link, visible, requires, isPractice } = req.body;
 
     const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({ error: 'Challenge not found.' });
@@ -208,7 +209,7 @@ module.exports = function (io) {
 
     db.prepare(`
       UPDATE challenges SET title = ?, category_id = ?, description = ?, points = ?,
-        flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?
+        flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?
       WHERE id = ?
     `).run(
       title ?? existing.title,
@@ -220,6 +221,7 @@ module.exports = function (io) {
       link ?? existing.link,
       visible === false ? 0 : 1,
       requires !== undefined ? (requires ? Number(requires) : null) : existing.requires,
+      isPractice !== undefined ? (isPractice ? 1 : 0) : existing.is_practice,
       id
     );
 
@@ -251,7 +253,7 @@ module.exports = function (io) {
 
   // ---- Teams ----
   router.get('/teams', (req, res) => {
-    const teams = db.prepare('SELECT id, name, operative_type, members_count, is_banned, created_at FROM teams ORDER BY id ASC').all();
+    const teams = db.prepare('SELECT id, name, full_name, student_id, college_id, operative_type, members_count, is_banned, created_at FROM teams ORDER BY id ASC').all();
     res.json(teams);
   });
 
@@ -284,6 +286,18 @@ module.exports = function (io) {
     for (const [k, v] of Object.entries(req.body || {})) update.run(k, String(v));
     res.json({ ok: true });
   });
+
+  // ---- Live Registration Submissions ----
+  router.get('/registration-submissions', (req, res) => {
+    const submissions = db.prepare('SELECT * FROM live_registration_submissions ORDER BY submitted_at DESC').all();
+    const result = submissions.map(s => {
+      let data = {};
+      try { data = JSON.parse(s.data); } catch(e) {}
+      return { id: s.id, submitted_at: s.submitted_at, data };
+    });
+    res.json(result);
+  });
+
 
   // ---- Anomaly ----
   router.get('/anomaly', (req, res) => {

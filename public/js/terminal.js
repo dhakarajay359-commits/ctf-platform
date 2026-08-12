@@ -1,5 +1,7 @@
 (function() {
-  const terminalHtml = `
+  function initTerminal() {
+    if (!document.body) return;
+    const terminalHtml = `
     <div id="hackerTerminal" class="hidden" style="position: fixed; top: 0; left: 0; right: 0; height: 50vh; background: rgba(5, 8, 12, 0.95); border-bottom: 2px solid var(--primary); z-index: 10000; font-family: var(--mono); color: var(--primary); padding: 20px; overflow-y: auto; display: flex; flex-direction: column; transition: transform 0.3s ease-in-out; transform: translateY(-100%);">
       <div style="flex: 1; overflow-y: auto;" id="termOutput">
         <div>CTF-OS v1.0 [CLI Interface Enabled]</div>
@@ -88,4 +90,11 @@
       }
     }
   });
+  }
+
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', initTerminal);
+  } else {
+    initTerminal();
+  }
 })();
