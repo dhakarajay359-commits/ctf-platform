@@ -45,6 +45,7 @@ app.use((req, res, next) => {
 // Sessions are kept in memory. This is fine for a single-process deployment
 // (the normal way to run a CTF for one event). If you need multiple server
 // processes/instances sharing sessions, swap in a store like connect-redis.
+app.set('trust proxy', 1);
 const sessionMiddleware = session({
   secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
   resave: false,
