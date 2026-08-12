@@ -14,7 +14,9 @@ router.post('/register', async (req, res) => {
     operativeType,
     membersCount
   } = req.body;
-  if (getSetting('registration_open') !== '1') {
+  const ctfStatus = await getSetting('ctf_status');
+  const regOpen = await getSetting('registration_open');
+  if (ctfStatus !== 'practice' && regOpen !== '1') {
     return res.status(403).json({
       error: 'Registration is currently closed.'
     });
@@ -115,14 +117,14 @@ router.post('/live-register', async (req, res) => {
     ok: true
   });
 });
-router.get('/public-settings', (req, res) => {
+router.get('/public-settings', async (req, res) => {
   res.json({
-    event_name: getSetting('event_name') || 'CTF',
-    start_time: getSetting('start_time') || '',
-    end_time: getSetting('end_time') || '',
-    headline: getSetting('headline') || '',
-    ctf_status: getSetting('ctf_status') || 'practice',
-    registration_open: getSetting('registration_open') === '1'
+    event_name: (await getSetting('event_name')) || 'CTF',
+    start_time: (await getSetting('start_time')) || '',
+    end_time: (await getSetting('end_time')) || '',
+    headline: (await getSetting('headline')) || '',
+    ctf_status: (await getSetting('ctf_status')) || 'practice',
+    registration_open: (await getSetting('registration_open')) === '1'
   });
 });
 router.get('/me', async (req, res) => {

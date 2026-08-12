@@ -6,10 +6,17 @@ module.exports = function () {
 
   // Get the public registration form if it's active
   router.get('/form', async (req, res) => {
-    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_%'").all();
+    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_%' OR key = 'ctf_status'").all();
     const config = {};
     rows.forEach(r => config[r.key] = r.value);
     const isActive = config.live_registration_active === '1';
+
+    if (config.ctf_status === 'practice') {
+      return res.json({
+        active: false,
+        title: config.live_registration_title || 'Live CTF Registration',
+      });
+    }
 
     // Check dates if set
     let withinDates = true;
@@ -51,9 +58,12 @@ module.exports = function () {
 
   // Get public info for the index page banner
   router.get('/info', async (req, res) => {
-    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_%'").all();
+    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_%' OR key = 'ctf_status'").all();
     const config = {};
     rows.forEach(r => config[r.key] = r.value);
+    if (config.ctf_status === 'practice') {
+      return res.json({ active: false });
+    }
     res.json({
       title: config.live_registration_title || 'Live CTF Event',
       active: config.live_registration_active === '1',
@@ -66,9 +76,16 @@ module.exports = function () {
 
   // Submit the registration form
   router.post('/submit', async (req, res) => {
-    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_registration_%'").all();
+    const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_registration_%' OR key = 'ctf_status'").all();
     const config = {};
     rows.forEach(r => config[r.key] = r.value);
+    
+    if (config.ctf_status === 'practice') {
+      return res.status(403).json({
+        error: 'Live registration is disabled in Practice mode.'
+      });
+    }
+
     const isActive = config.live_registration_active === '1';
     let withinDates = true;
     const now = Date.now();
