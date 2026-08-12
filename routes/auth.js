@@ -124,7 +124,8 @@ router.get('/public-settings', async (req, res) => {
     end_time: (await getSetting('end_time')) || '',
     headline: (await getSetting('headline')) || '',
     ctf_status: (await getSetting('ctf_status')) || 'practice',
-    registration_open: (await getSetting('registration_open')) === '1'
+    registration_open: (await getSetting('registration_open')) === '1',
+    live_ctf_event_start: (await getSetting('live_ctf_event_start')) || null
   });
 });
 router.get('/me', async (req, res) => {

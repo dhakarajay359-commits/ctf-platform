@@ -495,13 +495,40 @@ async function loadChallenges() {
   const data = await res.json();
   
   if (res.status === 403 && data.upcoming) {
-    // Show Upcoming Overlay
+    // Check settings for live_ctf_event_start
+    const settingsRes = await fetch('/api/auth/public-settings');
+    const settingsData = await settingsRes.json();
+    
+    // Show Upcoming Overlay with Countdown
     document.querySelector('main').innerHTML = `
       <div id="upcomingOverlay" style="position: absolute; top: 0; left: 0; width: 100%; height: 100%; background: rgba(10, 14, 20, 0.95); display: flex; flex-direction: column; align-items: center; justify-content: center; z-index: 50;">
-        <h1 style="font-size: 60px; color: var(--primary); text-shadow: 0 0 20px var(--primary-glow); letter-spacing: 10px;">EVENT SCHEDULED</h1>
-        <p style="color: var(--text-muted); font-size: 20px; font-family: var(--mono); margin-top: 20px;">TARGET SERVERS WILL BECOME AVAILABLE SOON</p>
+        <h1 style="font-size: 60px; color: var(--primary); text-shadow: 0 0 20px var(--primary-glow); letter-spacing: 10px;">WAITING ROOM</h1>
+        <p style="color: var(--text-muted); font-size: 20px; font-family: var(--mono); margin-top: 20px;">TARGET SERVERS WILL BECOME AVAILABLE IN:</p>
+        <div id="waitingCountdown" style="font-size: 80px; font-family: var(--mono); color: #fff; font-weight: bold; margin-top: 30px;">--:--:--</div>
       </div>
     `;
+    
+    const targetTime = settingsData.ctf_status === 'live' ? new Date(settingsData.live_ctf_event_start).getTime() : data.startTime;
+    
+    const countdownInterval = setInterval(() => {
+      const now = Date.now();
+      const diff = targetTime - now;
+      if (diff <= 0) {
+        clearInterval(countdownInterval);
+        document.getElementById('waitingCountdown').textContent = "00:00:00";
+        setTimeout(() => window.location.reload(), 1000); // Reload to let them in!
+        return;
+      }
+      
+      const hours = Math.floor(diff / (1000 * 60 * 60));
+      const mins = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+      const secs = Math.floor((diff % (1000 * 60)) / 1000);
+      document.getElementById('waitingCountdown').textContent = 
+        String(hours).padStart(2, '0') + ':' + 
+        String(mins).padStart(2, '0') + ':' + 
+        String(secs).padStart(2, '0');
+    }, 1000);
+    
     return;
   }
   

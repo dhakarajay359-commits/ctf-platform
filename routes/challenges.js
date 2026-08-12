@@ -41,15 +41,32 @@ module.exports = function (io) {
 
   // Middleware to check if CTF has started
   const checkCTFStarted = async (req, res, next) => {
-    const startRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_start_time'").get();
-    if (startRow && startRow.value) {
-      const startTime = Number(startRow.value);
-      if (Date.now() < startTime) {
-        return res.status(403).json({
-          error: 'CTF has not started yet.',
-          upcoming: true,
-          startTime
-        });
+    const ctfStatusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
+    const isLive = ctfStatusRow && ctfStatusRow.value === 'live';
+    
+    if (isLive) {
+      const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
+      if (liveStartRow && liveStartRow.value) {
+        const liveStartTime = new Date(liveStartRow.value).getTime();
+        if (Date.now() < liveStartTime) {
+          return res.status(403).json({
+            error: 'Live CTF has not started yet.',
+            upcoming: true,
+            startTime: liveStartTime
+          });
+        }
+      }
+    } else {
+      const startRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_start_time'").get();
+      if (startRow && startRow.value) {
+        const startTime = Number(startRow.value);
+        if (Date.now() < startTime) {
+          return res.status(403).json({
+            error: 'CTF has not started yet.',
+            upcoming: true,
+            startTime
+          });
+        }
       }
     }
     next();
