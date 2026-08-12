@@ -2,14 +2,9 @@ services:
   - type: web
     name: ctf-platform
     env: node
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     envVars:
       - key: NODE_ENV
         value: production
-      - key: DATA_DIR
-        value: /var/data
-    disk:
-      name: ctf-database
-      mountPath: /var/data
-      sizeGB: 1
