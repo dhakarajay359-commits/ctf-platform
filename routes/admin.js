@@ -1,18 +1,22 @@
 const express = require('express');
 const bcrypt = require('bcryptjs');
 const db = require('../db');
-const { requireAdmin } = require('../middleware/auth');
-const { broadcastScoreboard } = require('./scoreboard');
+const {
+  requireAdmin
+} = require('../middleware/auth');
+const {
+  broadcastScoreboard
+} = require('./scoreboard');
 const state = require('../state');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
-
 const uploadDir = path.join(__dirname, '..', 'public', 'uploads');
 if (!fs.existsSync(uploadDir)) {
-  fs.mkdirSync(uploadDir, { recursive: true });
+  fs.mkdirSync(uploadDir, {
+    recursive: true
+  });
 }
-
 const storage = multer.diskStorage({
   destination: function (req, file, cb) {
     cb(null, uploadDir);
@@ -22,9 +26,9 @@ const storage = multer.diskStorage({
     cb(null, uniqueSuffix + path.extname(file.originalname));
   }
 });
-
-const upload = multer({ storage: storage });
-
+const upload = multer({
+  storage: storage
+});
 module.exports = function (io) {
   const router = express.Router();
 
@@ -32,81 +36,88 @@ module.exports = function (io) {
   const loginAttempts = new Map();
   const MAX_ATTEMPTS = 5;
   const LOCKOUT_MINUTES = 15;
-
   function checkBruteForce(req, res, next) {
     const ip = req.ip || req.connection.remoteAddress;
     const now = Date.now();
     const windowMs = LOCKOUT_MINUTES * 60 * 1000;
-
     let attempts = loginAttempts.get(ip);
     if (!attempts) {
-      attempts = { count: 0, firstAttempt: now, lockedUntil: null };
+      attempts = {
+        count: 0,
+        firstAttempt: now,
+        lockedUntil: null
+      };
       loginAttempts.set(ip, attempts);
     }
-
     if (attempts.lockedUntil) {
       if (now < attempts.lockedUntil) {
         const remaining = Math.ceil((attempts.lockedUntil - now) / 60000);
-        return res.status(429).json({ error: `Too many failed attempts. Locked out for ${remaining} minutes.` });
+        return res.status(429).json({
+          error: `Too many failed attempts. Locked out for ${remaining} minutes.`
+        });
       } else {
         attempts.lockedUntil = null;
         attempts.count = 0;
         attempts.firstAttempt = now;
       }
     }
-
     if (now - attempts.firstAttempt > windowMs) {
       attempts.count = 0;
       attempts.firstAttempt = now;
     }
-
     next();
   }
-
   function recordFailedLogin(ip) {
     const attempts = loginAttempts.get(ip);
     if (attempts) {
       attempts.count += 1;
       if (attempts.count >= MAX_ATTEMPTS) {
-        attempts.lockedUntil = Date.now() + (LOCKOUT_MINUTES * 60 * 1000);
+        attempts.lockedUntil = Date.now() + LOCKOUT_MINUTES * 60 * 1000;
       }
     }
   }
-
   router.post('/login', checkBruteForce, (req, res) => {
-    const { password } = req.body;
+    const {
+      password
+    } = req.body;
     const ip = req.ip || req.connection.remoteAddress;
     const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
-
     if (password && password === adminPass) {
       req.session.isAdmin = true;
       loginAttempts.delete(ip); // Reset on success
-      return res.json({ ok: true });
+      return res.json({
+        ok: true
+      });
     }
-    
     recordFailedLogin(ip);
-    res.status(401).json({ error: 'Incorrect admin password.' });
+    res.status(401).json({
+      error: 'Incorrect admin password.'
+    });
   });
-
   router.post('/logout', (req, res) => {
     req.session.isAdmin = false;
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
   });
-
   router.use(requireAdmin);
 
   // ---- Change Admin Password ----
   router.post('/password', (req, res) => {
-    const { currentPassword, newPassword } = req.body;
-    if (!currentPassword || !newPassword) return res.status(400).json({ error: 'Missing fields' });
-
+    const {
+      currentPassword,
+      newPassword
+    } = req.body;
+    if (!currentPassword || !newPassword) return res.status(400).json({
+      error: 'Missing fields'
+    });
     const adminPass = process.env.ADMIN_PASSWORD || 'admin123';
     if (currentPassword !== adminPass) {
-      return res.status(401).json({ error: 'Incorrect current password' });
+      return res.status(401).json({
+        error: 'Incorrect current password'
+      });
     }
-
     process.env.ADMIN_PASSWORD = newPassword;
-
     try {
       const envPath = path.join(__dirname, '..', '.env');
       let env = fs.existsSync(envPath) ? fs.readFileSync(envPath, 'utf8') : '';
@@ -116,45 +127,57 @@ module.exports = function (io) {
         env += `\nADMIN_PASSWORD=${newPassword}\n`;
       }
       fs.writeFileSync(envPath, env);
-      res.json({ ok: true });
-    } catch(e) {
+      res.json({
+        ok: true
+      });
+    } catch (e) {
       console.error(e);
-      res.status(500).json({ error: 'Failed to write to .env file' });
+      res.status(500).json({
+        error: 'Failed to write to .env file'
+      });
     }
   });
 
   // ---- Categories ----
-  router.get('/categories', (req, res) => {
-    res.json(db.prepare('SELECT * FROM categories ORDER BY name').all());
+  router.get('/categories', async (req, res) => {
+    res.json(await db.prepare('SELECT * FROM categories ORDER BY name').all());
   });
-
-  router.post('/categories', (req, res) => {
-    const { name } = req.body;
-    if (!name || !name.trim()) return res.status(400).json({ error: 'Category name required.' });
+  router.post('/categories', async (req, res) => {
+    const {
+      name
+    } = req.body;
+    if (!name || !name.trim()) return res.status(400).json({
+      error: 'Category name required.'
+    });
     try {
-      const info = db.prepare('INSERT INTO categories (name) VALUES (?)').run(name.trim());
-      res.json({ id: info.lastInsertRowid, name: name.trim() });
+      const info = await db.prepare('INSERT INTO categories (name) VALUES (?)').run(name.trim());
+      res.json({
+        id: info.lastInsertRowid,
+        name: name.trim()
+      });
     } catch (e) {
-      res.status(409).json({ error: 'Category already exists.' });
+      res.status(409).json({
+        error: 'Category already exists.'
+      });
     }
   });
-
-  router.delete('/categories/:id', (req, res) => {
-    db.prepare('DELETE FROM categories WHERE id = ?').run(Number(req.params.id));
-    res.json({ ok: true });
+  router.delete('/categories/:id', async (req, res) => {
+    await db.prepare('DELETE FROM categories WHERE id = ?').run(Number(req.params.id));
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Challenges ----
-  router.get('/challenges', (req, res) => {
-    const challenges = db.prepare(`
+  router.get('/challenges', async (req, res) => {
+    const challenges = await db.prepare(`
       SELECT c.*, cat.name AS category
       FROM challenges c LEFT JOIN categories cat ON cat.id = c.category_id
       ORDER BY c.created_at DESC
     `).all();
-    const hints = db.prepare('SELECT * FROM hints ORDER BY order_index ASC').all();
-    const solveCounts = db.prepare('SELECT challenge_id, COUNT(*) AS n FROM solves GROUP BY challenge_id').all();
+    const hints = await db.prepare('SELECT * FROM hints ORDER BY order_index ASC').all();
+    const solveCounts = await db.prepare('SELECT challenge_id, COUNT(*) AS n FROM solves GROUP BY challenge_id').all();
     const solveMap = new Map(solveCounts.map(r => [r.challenge_id, r.n]));
-
     const result = challenges.map(c => ({
       ...c,
       flag_hash: undefined,
@@ -163,152 +186,166 @@ module.exports = function (io) {
     }));
     res.json(result);
   });
-
-  router.post('/challenges', (req, res) => {
-    const { title, categoryId, description, points, flag, difficulty, link, visible, hints, requires, isPractice } = req.body;
-
+  router.post('/challenges', async (req, res) => {
+    const {
+      title,
+      categoryId,
+      description,
+      points,
+      flag,
+      difficulty,
+      link,
+      visible,
+      hints,
+      requires,
+      isPractice
+    } = req.body;
     if (!title || !description || !flag || !points) {
-      return res.status(400).json({ error: 'Title, description, points, and flag are required.' });
+      return res.status(400).json({
+        error: 'Title, description, points, and flag are required.'
+      });
     }
-
     const flagHash = bcrypt.hashSync(String(flag).trim(), 10);
-
-    const info = db.prepare(`
+    const info = await db.prepare(`
       INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice)
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      title.trim(),
-      categoryId || null,
-      description,
-      Number(points),
-      flagHash,
-      difficulty || 'medium',
-      link || null,
-      visible === false ? 0 : 1,
-      requires ? Number(requires) : null,
-      isPractice ? 1 : 0
-    );
-
+    `).run(title.trim(), categoryId || null, description, Number(points), flagHash, difficulty || 'medium', link || null, visible === false ? 0 : 1, requires ? Number(requires) : null, isPractice ? 1 : 0);
     const challengeId = info.lastInsertRowid;
-
     if (Array.isArray(hints)) {
       const insertHint = db.prepare('INSERT INTO hints (challenge_id, text, cost, order_index) VALUES (?, ?, ?, ?)');
       hints.forEach((h, i) => {
         if (h.text && h.text.trim()) insertHint.run(challengeId, h.text.trim(), Number(h.cost) || 0, i);
       });
     }
-
-    res.json({ id: challengeId });
+    res.json({
+      id: challengeId
+    });
   });
-
-  router.put('/challenges/:id', (req, res) => {
+  router.put('/challenges/:id', async (req, res) => {
     const id = Number(req.params.id);
-    const { title, categoryId, description, points, flag, difficulty, link, visible, requires, isPractice } = req.body;
-
-    const existing = db.prepare('SELECT * FROM challenges WHERE id = ?').get(id);
-    if (!existing) return res.status(404).json({ error: 'Challenge not found.' });
-
+    const {
+      title,
+      categoryId,
+      description,
+      points,
+      flag,
+      difficulty,
+      link,
+      visible,
+      requires,
+      isPractice
+    } = req.body;
+    const existing = await db.prepare('SELECT * FROM challenges WHERE id = ?').get(id);
+    if (!existing) return res.status(404).json({
+      error: 'Challenge not found.'
+    });
     const flagHash = flag && flag.trim() ? bcrypt.hashSync(flag.trim(), 10) : existing.flag_hash;
-
-    db.prepare(`
+    await db.prepare(`
       UPDATE challenges SET title = ?, category_id = ?, description = ?, points = ?,
         flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?
       WHERE id = ?
-    `).run(
-      title ?? existing.title,
-      categoryId ?? existing.category_id,
-      description ?? existing.description,
-      points !== undefined ? Number(points) : existing.points,
-      flagHash,
-      difficulty ?? existing.difficulty,
-      link ?? existing.link,
-      visible === false ? 0 : 1,
-      requires !== undefined ? (requires ? Number(requires) : null) : existing.requires,
-      isPractice !== undefined ? (isPractice ? 1 : 0) : existing.is_practice,
-      id
-    );
-
-    res.json({ ok: true });
+    `).run(title ?? existing.title, categoryId ?? existing.category_id, description ?? existing.description, points !== undefined ? Number(points) : existing.points, flagHash, difficulty ?? existing.difficulty, link ?? existing.link, visible === false ? 0 : 1, requires !== undefined ? requires ? Number(requires) : null : existing.requires, isPractice !== undefined ? isPractice ? 1 : 0 : existing.is_practice, id);
+    res.json({
+      ok: true
+    });
   });
-
-  router.delete('/challenges/:id', (req, res) => {
-    db.prepare('DELETE FROM challenges WHERE id = ?').run(Number(req.params.id));
+  router.delete('/challenges/:id', async (req, res) => {
+    await db.prepare('DELETE FROM challenges WHERE id = ?').run(Number(req.params.id));
     broadcastScoreboard(io);
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Hints ----
-  router.post('/challenges/:id/hints', (req, res) => {
+  router.post('/challenges/:id/hints', async (req, res) => {
     const challengeId = Number(req.params.id);
-    const { text, cost } = req.body;
-    if (!text || !text.trim()) return res.status(400).json({ error: 'Hint text required.' });
-
-    const maxOrder = db.prepare('SELECT COALESCE(MAX(order_index), -1) AS m FROM hints WHERE challenge_id = ?').get(challengeId).m;
-    const info = db.prepare('INSERT INTO hints (challenge_id, text, cost, order_index) VALUES (?, ?, ?, ?)')
-      .run(challengeId, text.trim(), Number(cost) || 0, maxOrder + 1);
-    res.json({ id: info.lastInsertRowid });
+    const {
+      text,
+      cost
+    } = req.body;
+    if (!text || !text.trim()) return res.status(400).json({
+      error: 'Hint text required.'
+    });
+    const maxOrder = (await db.prepare('SELECT COALESCE(MAX(order_index), -1) AS m FROM hints WHERE challenge_id = ?').get(challengeId)).m;
+    const info = await db.prepare('INSERT INTO hints (challenge_id, text, cost, order_index) VALUES (?, ?, ?, ?)').run(challengeId, text.trim(), Number(cost) || 0, maxOrder + 1);
+    res.json({
+      id: info.lastInsertRowid
+    });
   });
-
-  router.delete('/hints/:id', (req, res) => {
-    db.prepare('DELETE FROM hints WHERE id = ?').run(Number(req.params.id));
-    res.json({ ok: true });
+  router.delete('/hints/:id', async (req, res) => {
+    await db.prepare('DELETE FROM hints WHERE id = ?').run(Number(req.params.id));
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Teams ----
-  router.get('/teams', (req, res) => {
-    const teams = db.prepare('SELECT id, name, full_name, student_id, college_id, operative_type, members_count, is_banned, created_at FROM teams ORDER BY id ASC').all();
+  router.get('/teams', async (req, res) => {
+    const teams = await db.prepare('SELECT id, name, full_name, student_id, college_id, operative_type, members_count, is_banned, created_at FROM teams ORDER BY id ASC').all();
     res.json(teams);
   });
-
-  router.post('/teams/:id/ban', (req, res) => {
-    db.prepare('UPDATE teams SET is_banned = 1 WHERE id = ?').run(req.params.id);
-    res.json({ ok: true });
+  router.post('/teams/:id/ban', async (req, res) => {
+    await db.prepare('UPDATE teams SET is_banned = 1 WHERE id = ?').run(req.params.id);
+    res.json({
+      ok: true
+    });
   });
-
-  router.post('/teams/:id/unban', (req, res) => {
-    db.prepare('UPDATE teams SET is_banned = 0 WHERE id = ?').run(req.params.id);
-    res.json({ ok: true });
+  router.post('/teams/:id/unban', async (req, res) => {
+    await db.prepare('UPDATE teams SET is_banned = 0 WHERE id = ?').run(req.params.id);
+    res.json({
+      ok: true
+    });
   });
-
-  router.delete('/teams/:id', (req, res) => {
-    db.prepare('DELETE FROM teams WHERE id = ?').run(Number(req.params.id));
+  router.delete('/teams/:id', async (req, res) => {
+    await db.prepare('DELETE FROM teams WHERE id = ?').run(Number(req.params.id));
     broadcastScoreboard(io);
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Settings ----
-  router.get('/settings', (req, res) => {
-    const rows = db.prepare('SELECT key, value FROM settings').all();
+  router.get('/settings', async (req, res) => {
+    const rows = await db.prepare('SELECT key, value FROM settings').all();
     const obj = {};
-    rows.forEach(r => (obj[r.key] = r.value));
+    rows.forEach(r => obj[r.key] = r.value);
     res.json(obj);
   });
-
   router.put('/settings', (req, res) => {
     const update = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
     for (const [k, v] of Object.entries(req.body || {})) update.run(k, String(v));
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Live Registration Submissions ----
-  router.get('/registration-submissions', (req, res) => {
-    const submissions = db.prepare('SELECT * FROM live_registration_submissions ORDER BY submitted_at DESC').all();
+  router.get('/registration-submissions', async (req, res) => {
+    const submissions = await db.prepare('SELECT * FROM live_registration_submissions ORDER BY submitted_at DESC').all();
     const result = submissions.map(s => {
       let data = {};
-      try { data = JSON.parse(s.data); } catch(e) {}
-      return { id: s.id, submitted_at: s.submitted_at, data };
+      try {
+        data = JSON.parse(s.data);
+      } catch (e) {}
+      return {
+        id: s.id,
+        submitted_at: s.submitted_at,
+        data
+      };
     });
     res.json(result);
   });
-
-  router.delete('/registration-submissions', (req, res) => {
-    db.prepare('DELETE FROM live_registration_submissions').run();
-    res.json({ ok: true });
+  router.delete('/registration-submissions', async (req, res) => {
+    await db.prepare('DELETE FROM live_registration_submissions').run();
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Feedback System ----
-  router.get('/feedback', (req, res) => {
-    const fb = db.prepare(`
+  router.get('/feedback', async (req, res) => {
+    const fb = await db.prepare(`
       SELECT f.id, f.rating, f.comments, f.submitted_at, t.name as team_name 
       FROM feedback f 
       JOIN teams t ON f.team_id = t.id 
@@ -317,21 +354,27 @@ module.exports = function (io) {
     res.json(fb);
   });
 
-
   // ---- Anomaly ----
   router.get('/anomaly', (req, res) => {
-    res.json(state.anomaly || { active: false });
+    res.json(state.anomaly || {
+      active: false
+    });
   });
-
-  router.post('/anomaly', (req, res) => {
-    const { categoryId, multiplier, durationMinutes } = req.body;
+  router.post('/anomaly', async (req, res) => {
+    const {
+      categoryId,
+      multiplier,
+      durationMinutes
+    } = req.body;
     if (!categoryId || !multiplier || !durationMinutes) {
-      return res.status(400).json({ error: 'Missing anomaly parameters.' });
+      return res.status(400).json({
+        error: 'Missing anomaly parameters.'
+      });
     }
-
-    const cat = db.prepare('SELECT name FROM categories WHERE id = ?').get(categoryId);
-    if (!cat) return res.status(400).json({ error: 'Invalid category' });
-
+    const cat = await db.prepare('SELECT name FROM categories WHERE id = ?').get(categoryId);
+    if (!cat) return res.status(400).json({
+      error: 'Invalid category'
+    });
     state.anomaly = {
       active: true,
       categoryId: Number(categoryId),
@@ -339,106 +382,119 @@ module.exports = function (io) {
       multiplier: Number(multiplier),
       endTime: Date.now() + Number(durationMinutes) * 60000
     };
-
     const msg = `SURGE ANOMALY: A ${multiplier}x multiplier has been detected for ${durationMinutes} minutes for ${cat.name}!`;
-    db.prepare("INSERT INTO notifications (message, type) VALUES (?, 'anomaly')").run(msg);
-
+    await db.prepare("INSERT INTO notifications (message, type) VALUES (?, 'anomaly')").run(msg);
     io.emit('anomaly:start', state.anomaly);
-    io.emit('anomaly_alert', { message: msg, timestamp: new Date().toISOString() });
-    
+    io.emit('anomaly_alert', {
+      message: msg,
+      timestamp: new Date().toISOString()
+    });
     const discord = require('../utils/discord');
     discord.sendAnomaly(cat.name, multiplier, durationMinutes);
-
     res.json(state.anomaly);
   });
-
   router.post('/anomaly/clear', (req, res) => {
     state.anomaly = null;
     io.emit('anomaly:end');
-    res.json({ ok: true });
+    res.json({
+      ok: true
+    });
   });
 
   // ---- Media Uploads ----
   router.post('/upload', upload.single('media'), (req, res) => {
     if (!req.file) {
-      return res.status(400).json({ error: 'No file uploaded.' });
+      return res.status(400).json({
+        error: 'No file uploaded.'
+      });
     }
     // Return the public URL to the uploaded file
-    res.json({ url: `/uploads/${req.file.filename}` });
+    res.json({
+      url: `/uploads/${req.file.filename}`
+    });
   });
 
   // ---- Chat ----
-  router.get('/chat/teams', (req, res) => {
+  router.get('/chat/teams', async (req, res) => {
     // Get list of teams that have sent or received messages
-    const teams = db.prepare(`
+    const teams = await db.prepare(`
       SELECT DISTINCT t.id, t.name 
       FROM teams t
       JOIN messages m ON m.team_id = t.id
     `).all();
     res.json(teams);
   });
-
-  router.get('/chat/messages/:teamId', (req, res) => {
-    const messages = db.prepare('SELECT * FROM messages WHERE team_id = ? ORDER BY created_at ASC').all(req.params.teamId);
+  router.get('/chat/messages/:teamId', async (req, res) => {
+    const messages = await db.prepare('SELECT * FROM messages WHERE team_id = ? ORDER BY created_at ASC').all(req.params.teamId);
     res.json(messages);
   });
 
   // ---- Timer ----
-  router.post('/timer', (req, res) => {
-    const { durationMinutes, startTimestamp } = req.body;
+  router.post('/timer', async (req, res) => {
+    const {
+      durationMinutes,
+      startTimestamp
+    } = req.body;
     let endTime = null;
     let startTime = null;
-    
     if (startTimestamp) {
       startTime = Number(startTimestamp);
-      db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', ?)").run(startTime);
+      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', ?)").run(startTime);
     } else {
-      db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
+      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
     }
-
     if (durationMinutes) {
       endTime = (startTime || Date.now()) + Number(durationMinutes) * 60000;
-      db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', ?)").run(endTime);
+      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', ?)").run(endTime);
     } else {
-      db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
+      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
     }
-
-    io.emit('timer:update', { startTime, endTime });
-    res.json({ ok: true, startTime, endTime });
+    io.emit('timer:update', {
+      startTime,
+      endTime
+    });
+    res.json({
+      ok: true,
+      startTime,
+      endTime
+    });
   });
-
-  router.get('/timer', (req, res) => {
-    const endRow = db.prepare("SELECT value FROM settings WHERE key = 'ctf_end_time'").get();
-    const startRow = db.prepare("SELECT value FROM settings WHERE key = 'ctf_start_time'").get();
-    res.json({ 
+  router.get('/timer', async (req, res) => {
+    const endRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_end_time'").get();
+    const startRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_start_time'").get();
+    res.json({
       endTime: endRow && endRow.value ? Number(endRow.value) : null,
-      startTime: startRow && startRow.value ? Number(startRow.value) : null 
+      startTime: startRow && startRow.value ? Number(startRow.value) : null
     });
   });
 
   // ---- Factory Reset ----
-  router.post('/reset', (req, res) => {
+  router.post('/reset', async (req, res) => {
     // Delete user generated data, keep configurations and challenges
-    db.prepare('DELETE FROM teams').run();
-    db.prepare('DELETE FROM solves').run();
-    db.prepare('DELETE FROM wrong_attempts').run();
-    db.prepare('DELETE FROM messages').run();
-    db.prepare('DELETE FROM notifications').run();
-    db.prepare('DELETE FROM hint_reveals').run();
-    
+    await db.prepare('DELETE FROM teams').run();
+    await db.prepare('DELETE FROM solves').run();
+    await db.prepare('DELETE FROM wrong_attempts').run();
+    await db.prepare('DELETE FROM messages').run();
+    await db.prepare('DELETE FROM notifications').run();
+    await db.prepare('DELETE FROM hint_reveals').run();
+
     // Clear anomaly and timer states in memory and db
     state.anomaly = null;
-    db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
-    db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
-    
+    await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
+    await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
+
     // Broadcast state changes
     io.emit('anomaly:end');
-    io.emit('timer:update', { startTime: null, endTime: null });
+    io.emit('timer:update', {
+      startTime: null,
+      endTime: null
+    });
     broadcastScoreboard(io);
     io.emit('activity'); // force challenge reload for all clients
-    
-    res.json({ ok: true });
-  });
 
+    res.json({
+      ok: true
+    });
+  });
   return router;
 };

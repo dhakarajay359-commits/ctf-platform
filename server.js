@@ -2,21 +2,24 @@ require('dotenv').config();
 const express = require('express');
 const session = require('express-session');
 const http = require('http');
-const { Server } = require('socket.io');
+const {
+  Server
+} = require('socket.io');
 const path = require('path');
-
 const db = require('./db'); // ensures DB + tables exist
-const { router: scoreboardRouter, computeScoreboard, broadcastScoreboard } = require('./routes/scoreboard');
-
+const {
+  router: scoreboardRouter,
+  computeScoreboard,
+  broadcastScoreboard
+} = require('./routes/scoreboard');
 const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
-
 const PORT = process.env.PORT || 3000;
-
 global.activeSandboxes = new Map();
-const { createProxyMiddleware } = require('http-proxy-middleware');
-
+const {
+  createProxyMiddleware
+} = require('http-proxy-middleware');
 const sandboxProxy = createProxyMiddleware({
   target: 'http://127.0.0.1',
   changeOrigin: true,
@@ -32,9 +35,7 @@ const sandboxProxy = createProxyMiddleware({
     return path.replace(`/sandbox/\${cId}`, '');
   }
 });
-
 app.use('/sandbox/:containerId', sandboxProxy);
-
 app.use(express.json());
 
 // Easter Egg Header
@@ -51,29 +52,26 @@ const sessionMiddleware = session({
   resave: false,
   saveUninitialized: false,
   cookie: {
-    maxAge: 1000 * 60 * 60 * 24 * 7, // 7 days
+    maxAge: 1000 * 60 * 60 * 24 * 7,
+    // 7 days
     secure: process.env.NODE_ENV === 'production',
     httpOnly: true
   }
 });
 app.use(sessionMiddleware);
-
 const passport = require('passport');
 app.use(passport.initialize());
 app.use(passport.session());
 
 // Passport serialization
 passport.serializeUser((user, done) => done(null, user.id));
-passport.deserializeUser((id, done) => {
-  const team = db.prepare('SELECT * FROM teams WHERE id = ?').get(id);
+passport.deserializeUser(async (id, done) => {
+  const team = await db.prepare('SELECT * FROM teams WHERE id = ?').get(id);
   done(null, team);
 });
-
 require('./passport')(passport, db);
-
 const blueTeam = require('./middleware/blue_team')(io);
 app.use('/api', blueTeam);
-
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/admin')(io));
 app.use('/api/challenges', require('./routes/challenges')(io));
@@ -85,24 +83,21 @@ app.use('/api/campaign', require('./routes/campaign')());
 app.use('/api/notifications', require('./routes/notifications'));
 app.use('/api/chat', require('./routes/chat')(io));
 app.use('/api/registration', require('./routes/registration')());
-
-app.get('/api/timer', (req, res) => {
-  const row = db.prepare("SELECT value FROM settings WHERE key = 'ctf_end_time'").get();
-  res.json({ endTime: row && row.value ? Number(row.value) : null });
+app.get('/api/timer', async (req, res) => {
+  const row = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_end_time'").get();
+  res.json({
+    endTime: row && row.value ? Number(row.value) : null
+  });
 });
-
 app.get('/favicon.ico', (req, res) => res.status(204).end());
-
 app.use(express.static(path.join(__dirname, 'public')));
 app.use('/node_modules', express.static(path.join(__dirname, 'node_modules')));
-
 io.use((socket, next) => {
   sessionMiddleware(socket.request, socket.request.res || {}, next);
 });
-
 const teamIpTracker = {}; // teamId -> Map<ip, count>
 
-io.on('connection', (socket) => {
+io.on('connection', socket => {
   const session = socket.request.session;
   if (session && session.isAdmin) {
     socket.join('admin_room');
@@ -113,10 +108,8 @@ io.on('connection', (socket) => {
     // IP Tracking Logic
     const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
     if (!teamIpTracker[teamId]) teamIpTracker[teamId] = new Map();
-    
     const count = teamIpTracker[teamId].get(ip) || 0;
     teamIpTracker[teamId].set(ip, count + 1);
-
     if (teamIpTracker[teamId].size > 1) {
       io.to('admin_room').emit('admin:alert', {
         type: 'ACCOUNT_SHARING',
@@ -124,7 +117,6 @@ io.on('connection', (socket) => {
         timestamp: new Date().toISOString()
       });
     }
-
     socket.on('disconnect', () => {
       if (teamIpTracker[teamId]) {
         const newCount = teamIpTracker[teamId].get(ip) - 1;
@@ -136,46 +128,56 @@ io.on('connection', (socket) => {
       }
     });
   }
-
   socket.emit('scoreboard:data', computeScoreboard());
   socket.on('scoreboard:request', () => {
     socket.emit('scoreboard:data', computeScoreboard());
   });
-
-  socket.on('chat:send', (data) => {
+  socket.on('chat:send', async data => {
     // data: { text: string, toTeamId?: number }
     if (!data.text || !data.text.trim()) return;
     const text = data.text.trim();
-
     if (session && session.isAdmin) {
       if (!data.toTeamId) return; // Admin must specify who to send to
-      db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 1, ?)').run(data.toTeamId, text);
-      const msg = { team_id: data.toTeamId, is_from_admin: 1, text, created_at: new Date().toISOString() };
+      await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 1, ?)').run(data.toTeamId, text);
+      const msg = {
+        team_id: data.toTeamId,
+        is_from_admin: 1,
+        text,
+        created_at: new Date().toISOString()
+      };
       io.to(`room_team_${data.toTeamId}`).emit('chat:receive', msg);
       io.to('admin_room').emit('chat:receive', msg);
     } else if (session && session.teamId) {
-      db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 0, ?)').run(session.teamId, text);
-      const msg = { team_id: session.teamId, is_from_admin: 0, text, created_at: new Date().toISOString() };
+      await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 0, ?)').run(session.teamId, text);
+      const msg = {
+        team_id: session.teamId,
+        is_from_admin: 0,
+        text,
+        created_at: new Date().toISOString()
+      };
       io.to(`room_team_${session.teamId}`).emit('chat:receive', msg);
       io.to('admin_room').emit('chat:receive', msg);
     }
   });
-
-  socket.on('challenge:claim', (data) => {
+  socket.on('challenge:claim', async data => {
     if (session && session.teamId) {
-      db.prepare('INSERT INTO challenge_claims (team_id, challenge_id, operative_alias) VALUES (?, ?, ?) ON CONFLICT(team_id, challenge_id) DO UPDATE SET operative_alias = excluded.operative_alias').run(session.teamId, data.challengeId, data.alias);
-      io.to(`room_team_${session.teamId}`).emit('claim:update', { challengeId: data.challengeId, alias: data.alias });
+      await db.prepare('INSERT INTO challenge_claims (team_id, challenge_id, operative_alias) VALUES (?, ?, ?) ON CONFLICT(team_id, challenge_id) DO UPDATE SET operative_alias = excluded.operative_alias').run(session.teamId, data.challengeId, data.alias);
+      io.to(`room_team_${session.teamId}`).emit('claim:update', {
+        challengeId: data.challengeId,
+        alias: data.alias
+      });
     }
   });
-
-  socket.on('challenge:unclaim', (data) => {
+  socket.on('challenge:unclaim', async data => {
     if (session && session.teamId) {
-      db.prepare('DELETE FROM challenge_claims WHERE team_id = ? AND challenge_id = ?').run(session.teamId, data.challengeId);
-      io.to(`room_team_${session.teamId}`).emit('claim:update', { challengeId: data.challengeId, alias: null });
+      await db.prepare('DELETE FROM challenge_claims WHERE team_id = ? AND challenge_id = ?').run(session.teamId, data.challengeId);
+      io.to(`room_team_${session.teamId}`).emit('claim:update', {
+        challengeId: data.challengeId,
+        alias: null
+      });
     }
   });
-
-  socket.on('cheat:alert', (data) => {
+  socket.on('cheat:alert', data => {
     if (session && session.teamId) {
       // Relay to admins only
       io.to('admin_room').emit('admin:alert', {
@@ -199,21 +201,18 @@ io.on('connection', (socket) => {
         cwd: process.env.HOME || process.env.USERPROFILE,
         env: process.env
       });
-
-      ptyProcess.onData((data) => {
+      ptyProcess.onData(data => {
         socket.emit('terminal:data', data);
       });
     } catch (e) {
       socket.emit('terminal:data', '\\r\\n\\x1b[31m[ERROR] Native node-pty module failed to load. Terminal is in fallback mode.\\x1b[0m\\r\\n');
     }
   });
-
-  socket.on('terminal:data', (data) => {
+  socket.on('terminal:data', data => {
     if (ptyProcess) {
       ptyProcess.write(data);
     }
   });
-
   socket.on('disconnect', () => {
     if (ptyProcess) {
       ptyProcess.kill();
@@ -222,12 +221,11 @@ io.on('connection', (socket) => {
 });
 
 // KoTH Point Awards (Runs every 1 minute)
-setInterval(() => {
-  const controls = db.prepare('SELECT team_id FROM koth_control').all();
+setInterval(async () => {
+  const controls = await db.prepare('SELECT team_id FROM koth_control').all();
   if (controls.length > 0) {
     const awardStmt = db.prepare('INSERT INTO koth_points (team_id, points) VALUES (?, 5) ON CONFLICT(team_id) DO UPDATE SET points = points + 5');
     const getTeam = db.prepare('SELECT name FROM teams WHERE id = ?');
-    
     db.transaction(() => {
       controls.forEach(c => {
         awardStmt.run(c.team_id);
@@ -258,22 +256,23 @@ setInterval(() => {
 }, 60000);
 
 // Auto-wipe Live Registration Data
-setInterval(() => {
+setInterval(async () => {
   try {
-    const row = db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
+    const row = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
     if (row && row.value) {
       if (Date.now() > new Date(row.value).getTime()) {
-        db.prepare('DELETE FROM live_registration_submissions').run();
+        await db.prepare('DELETE FROM live_registration_submissions').run();
       }
     }
   } catch (e) {
     console.error('Error auto-wiping live registration data', e);
   }
 }, 60 * 60 * 1000);
-
-server.listen(PORT, () => {
-  console.log(`CTF platform running on http://localhost:${PORT}`);
-  if (!process.env.ADMIN_PASSWORD) {
-    console.warn('WARNING: ADMIN_PASSWORD not set in .env — set one before hosting publicly!');
-  }
+db.initDb().then(() => {
+  server.listen(PORT, () => {
+    console.log(`CTF platform running on http://localhost:${PORT}`);
+    if (!process.env.ADMIN_PASSWORD) {
+      console.warn('WARNING: ADMIN_PASSWORD not set in .env — set one before hosting publicly!');
+    }
+  });
 });

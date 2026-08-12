@@ -1,4 +1,6 @@
 const db = require('./db.js');
+(async () => {
+  await db.initDb();
 
 const insertChapter = db.prepare('INSERT INTO campaign_chapters (title, content, required_challenge_id, order_index) VALUES (?, ?, ?, ?)');
 
@@ -32,6 +34,9 @@ try {
   );
 
   console.log("New campaign chapters added successfully!");
+  process.exit(0);
 } catch (e) {
   console.error("Error adding chapters:", e);
+  process.exit(1);
 }
+})();
