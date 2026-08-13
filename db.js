@@ -192,6 +192,18 @@ const db = {
       CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
     `);
 
+    try {
+      await pool.query('ALTER TABLE teams ADD COLUMN is_live INTEGER DEFAULT 0');
+    } catch (e) {
+      // Column might already exist
+    }
+
+    try {
+      await pool.query('ALTER TABLE challenges ADD COLUMN is_practice INTEGER DEFAULT 0');
+    } catch (e) {
+      // Column might already exist
+    }
+
     // seed default settings
     const defaultSettings = {
       event_name: 'ajay ctf 2026',
