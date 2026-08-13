@@ -132,9 +132,13 @@ io.on('connection', socket => {
       }
     });
   }
-  socket.emit('scoreboard:data', computeScoreboard());
-  socket.on('scoreboard:request', () => {
-    socket.emit('scoreboard:data', computeScoreboard());
+  computeScoreboard().then(data => socket.emit('scoreboard:data', data)).catch(e => console.error(e));
+  socket.on('scoreboard:request', async () => {
+    try {
+      socket.emit('scoreboard:data', await computeScoreboard());
+    } catch(e) {
+      console.error(e);
+    }
   });
   socket.on('chat:send', async data => {
     // data: { text: string, toTeamId?: number }

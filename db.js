@@ -192,16 +192,13 @@ const db = {
       CREATE INDEX IF NOT EXISTS "IDX_session_expire" ON "session" ("expire");
     `);
 
+    // Add columns if they don't exist (for existing deployments)
     try {
-      await pool.query('ALTER TABLE teams ADD COLUMN is_live INTEGER DEFAULT 0');
-    } catch (e) {
-      // Column might already exist
-    }
-
-    try {
-      await pool.query('ALTER TABLE challenges ADD COLUMN is_practice INTEGER DEFAULT 0');
-    } catch (e) {
-      // Column might already exist
+      await pool.query('ALTER TABLE teams ADD COLUMN IF NOT EXISTS is_live INTEGER DEFAULT 0');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_koth INTEGER DEFAULT 0');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_practice INTEGER DEFAULT 0');
+    } catch(e) {
+      console.error('Error adding columns:', e);
     }
 
     // seed default settings

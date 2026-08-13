@@ -93,11 +93,20 @@ async function computeScoreboard() {
     ...r
   }));
 }
-router.get('/', (req, res) => {
-  res.json(computeScoreboard());
+router.get('/', async (req, res) => {
+  try {
+    res.json(await computeScoreboard());
+  } catch(e) {
+    console.error(e);
+    res.status(500).json({ error: 'Error computing scoreboard' });
+  }
 });
-function broadcastScoreboard(io) {
-  io.emit('scoreboard:data', computeScoreboard());
+async function broadcastScoreboard(io) {
+  try {
+    io.emit('scoreboard:data', await computeScoreboard());
+  } catch(e) {
+    console.error(e);
+  }
 }
 router.get('/report/:teamId', async (req, res) => {
   const teamId = Number(req.params.teamId);
