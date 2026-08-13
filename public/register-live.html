@@ -34,8 +34,8 @@
 
     <div id="scheduleBanner" style="text-align:center; margin-bottom: 20px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; display: none;"></div>
     <div id="closedState" class="reg-box hidden" style="text-align:center;">
-      <h2 style="color:var(--danger); margin-top:0;">Registration Closed</h2>
-      <p style="color:var(--text-muted); margin-bottom:0;">Registration is not yet open. Please wait for the admin to release the form or check back later.</p>
+      <h2 id="closedTitle" style="color:var(--danger); margin-top:0;">Registration Closed</h2>
+      <p id="closedDesc" style="color:var(--text-muted); margin-bottom:0;">Registration is not available at this time.</p>
     </div>
 
     <div id="successState" class="reg-box hidden" style="text-align:center;">
@@ -98,6 +98,18 @@
       }
       
       if (!data.active) {
+        const closedTitle = document.getElementById('closedTitle');
+        const closedDesc = document.getElementById('closedDesc');
+        if (data.reason === 'not_started') {
+          closedTitle.textContent = 'Registration Not Open';
+          closedDesc.textContent = 'Registration has not started yet. Please check the schedule above and come back later.';
+        } else if (data.reason === 'ended') {
+          closedTitle.textContent = 'Registration Ended';
+          closedDesc.textContent = 'The registration window for this event has closed.';
+        } else {
+          closedTitle.textContent = 'Registration Closed';
+          closedDesc.textContent = 'Registration is currently inactive or closed by the administrator.';
+        }
         document.getElementById('closedState').classList.remove('hidden');
         return;
       }

@@ -20,9 +20,15 @@ module.exports = function () {
     if (config.live_registration_end) {
       if (now > new Date(config.live_registration_end).getTime()) withinDates = false;
     }
+    let reason = 'inactive';
+    if (!isActive) reason = 'inactive';
+    else if (config.live_registration_start && now < new Date(config.live_registration_start).getTime()) reason = 'not_started';
+    else if (config.live_registration_end && now > new Date(config.live_registration_end).getTime()) reason = 'ended';
+
     if (!isActive || !withinDates) {
       return res.json({
         active: false,
+        reason: reason,
         title: config.live_registration_title || 'Live CTF Registration',
         registration_start: config.live_registration_start || null,
         registration_end: config.live_registration_end || null,
