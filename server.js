@@ -38,16 +38,20 @@ const sandboxProxy = createProxyMiddleware({
 app.use('/sandbox/:containerId', sandboxProxy);
 app.use(express.json());
 
+const pgSession = require('connect-pg-simple')(session);
+
 // Easter Egg Header
 app.use((req, res, next) => {
   res.setHeader('X-OmniCorp-Secret', 'flag{headers_are_cool_1337}');
   next();
 });
-// Sessions are kept in memory. This is fine for a single-process deployment
-// (the normal way to run a CTF for one event). If you need multiple server
-// processes/instances sharing sessions, swap in a store like connect-redis.
+// Sessions are persisted in Postgres so they survive server restarts.
 app.set('trust proxy', 1);
 const sessionMiddleware = session({
+  store: new pgSession({
+    pool: db.pool,
+    tableName: 'session'
+  }),
   secret: process.env.SESSION_SECRET || 'change-this-secret-in-production',
   resave: false,
   saveUninitialized: false,
