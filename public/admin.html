@@ -828,8 +828,8 @@ async function saveChallenge() {
 
   const msg = document.getElementById('editorMsg');
 
-  if (!title || !description || (!editingChallengeId && !flag) || !points) {
-    msg.innerHTML = '<div class="alert alert-error">Title, description, points, and flag are required.</div>';
+  if (!title || (!editingChallengeId && !flag) || points === undefined || points === null || points === '') {
+    msg.innerHTML = '<div class="alert alert-error">Title, points, and flag are required.</div>';
     return;
   }
 

@@ -222,14 +222,15 @@ io.on('connection', socket => {
 
 // KoTH Point Awards (Runs every 1 minute)
 setInterval(async () => {
-  const controls = await db.prepare('SELECT team_id FROM koth_control').all();
-  if (controls.length > 0) {
-    const awardStmt = db.prepare('INSERT INTO koth_points (team_id, points) VALUES (?, 5) ON CONFLICT(team_id) DO UPDATE SET points = points + 5');
-    const getTeam = db.prepare('SELECT name FROM teams WHERE id = ?');
-    db.transaction(() => {
-      controls.forEach(c => {
-        awardStmt.run(c.team_id);
-        const team = getTeam.get(c.team_id);
+  try {
+    const controls = await db.prepare('SELECT team_id FROM koth_control').all();
+    if (controls.length > 0) {
+      const awardStmt = db.prepare('INSERT INTO koth_points (team_id, points) VALUES (?, 5) ON CONFLICT(team_id) DO UPDATE SET points = points + 5');
+      const getTeam = db.prepare('SELECT name FROM teams WHERE id = ?');
+      
+      for (const c of controls) {
+        await awardStmt.run(c.team_id);
+        const team = await getTeam.get(c.team_id);
         if (team) {
           io.to(`room_team_${c.team_id}`).emit('notifications:receive', {
             id: Date.now(),
@@ -238,9 +239,11 @@ setInterval(async () => {
             type: 'info'
           });
         }
-      });
-    })();
-    broadcastScoreboard(io);
+      }
+      broadcastScoreboard(io);
+    }
+  } catch (err) {
+    console.error('KoTH interval error:', err);
   }
 }, 60000);
 

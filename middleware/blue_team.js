@@ -3,7 +3,7 @@ const db = require('../db');
 const requestLog = new Map();
 
 module.exports = function (io) {
-  return function blueTeamMiddleware(req, res, next) {
+  return async function blueTeamMiddleware(req, res, next) {
     if (!req.session || !req.session.teamId || req.session.isAdmin) {
       return next();
     }
@@ -41,9 +41,9 @@ module.exports = function (io) {
     }
 
     if (penalty > 0) {
-      db.prepare('UPDATE teams SET stealth_score = MAX(0, stealth_score - ?) WHERE id = ?').run(penalty, teamId);
+      await db.prepare('UPDATE teams SET stealth_score = GREATEST(0, stealth_score - ?) WHERE id = ?').run(penalty, teamId);
       
-      const updated = db.prepare('SELECT stealth_score FROM teams WHERE id = ?').get(teamId);
+      const updated = await db.prepare('SELECT stealth_score FROM teams WHERE id = ?').get(teamId);
       
       io.to(`room_team_${teamId}`).emit('notifications:receive', {
         id: Date.now(),

@@ -200,9 +200,9 @@ module.exports = function (io) {
       requires,
       isPractice
     } = req.body;
-    if (!title || !description || !flag || !points) {
+    if (!title || !flag || points === undefined || points === null || points === '') {
       return res.status(400).json({
-        error: 'Title, description, points, and flag are required.'
+        error: 'Title, points, and flag are required.'
       });
     }
     const flagHash = bcrypt.hashSync(String(flag).trim(), 10);
