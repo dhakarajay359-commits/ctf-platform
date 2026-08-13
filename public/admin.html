@@ -8,7 +8,15 @@
 <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
 <script src="/socket.io/socket.io.js"></script>
 <script src="/js/firstblood.js"></script>
-<script src="/js/notifications.js"></script>`n<script src="/js/timer.js"></script>`n<script src="/js/chat.js"></script>`n<script src="/js/anticheat.js"></script>`n<link rel="stylesheet" href="/css/terminal.css">`n<script src="/js/terminal.js"></script>`n</head>
+<script src="/js/notifications.js"></script>
+<script src="/js/timer.js"></script>
+<script src="/js/chat.js"></script>
+<script src="/js/anticheat.js"></script>
+<link rel="stylesheet" href="/css/terminal.css">
+<script src="/js/terminal.js"></script>
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+</head>
 <body>
 <div class="topbar">
   <div class="brand"><span class="dot"></span> CTF PLATFORM <span style="color:var(--text-muted); font-weight:400;">/ admin</span></div>
@@ -411,10 +419,16 @@ async function loadRegistrations() {
   document.getElementById('regFormTitle').value = settings.live_registration_title || '';
   document.getElementById('regFormDesc').value = settings.live_registration_description || '';
   document.getElementById('regFormActive').value = settings.live_registration_active || '0';
-  document.getElementById('regFormStart').value = toLocalDatetime(settings.live_registration_start);
-  document.getElementById('regFormEnd').value = toLocalDatetime(settings.live_registration_end);
-  document.getElementById('ctfEventStart').value = toLocalDatetime(settings.live_ctf_event_start);
-  document.getElementById('ctfEventEnd').value = toLocalDatetime(settings.live_ctf_event_end);
+  function setDatePicker(id, isoString) {
+    const val = toLocalDatetime(isoString);
+    const el = document.getElementById(id);
+    if (el._flatpickr) el._flatpickr.setDate(val);
+    else el.value = val;
+  }
+  setDatePicker('regFormStart', settings.live_registration_start);
+  setDatePicker('regFormEnd', settings.live_registration_end);
+  setDatePicker('ctfEventStart', settings.live_ctf_event_start);
+  setDatePicker('ctfEventEnd', settings.live_ctf_event_end);
   
   try {
     currentRegSchema = JSON.parse(settings.live_registration_schema || '[]');
@@ -1190,6 +1204,15 @@ document.querySelectorAll('.admin-sidebar button').forEach(btn => {
     if (btn.dataset.section === 'chat') loadChatTeams();
   });
 });
+</script>
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
+<script>
+  flatpickr("input[type=datetime-local]", {
+    enableTime: true,
+    dateFormat: "Y-m-d\\TH:i",
+    altInput: true,
+    altFormat: "F j, Y h:i K"
+  });
 </script>
 </body>
 </html>
