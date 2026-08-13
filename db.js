@@ -59,7 +59,8 @@ const db = {
         full_name TEXT DEFAULT '',
         student_id TEXT DEFAULT '',
         college_id TEXT DEFAULT '',
-        roster TEXT
+        roster TEXT,
+        is_live INTEGER DEFAULT 0
       );
 
       CREATE TABLE IF NOT EXISTS categories (

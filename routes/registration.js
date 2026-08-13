@@ -11,13 +11,6 @@ module.exports = function () {
     rows.forEach(r => config[r.key] = r.value);
     const isActive = config.live_registration_active === '1';
 
-    if (config.ctf_status === 'practice') {
-      return res.json({
-        active: false,
-        title: config.live_registration_title || 'Live CTF Registration',
-      });
-    }
-
     // Check dates if set
     let withinDates = true;
     const now = Date.now();
@@ -61,9 +54,6 @@ module.exports = function () {
     const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'live_%' OR key = 'ctf_status'").all();
     const config = {};
     rows.forEach(r => config[r.key] = r.value);
-    if (config.ctf_status === 'practice') {
-      return res.json({ active: false });
-    }
     res.json({
       title: config.live_registration_title || 'Live CTF Event',
       active: config.live_registration_active === '1',
@@ -80,12 +70,6 @@ module.exports = function () {
     const config = {};
     rows.forEach(r => config[r.key] = r.value);
     
-    if (config.ctf_status === 'practice') {
-      return res.status(403).json({
-        error: 'Live registration is disabled in Practice mode.'
-      });
-    }
-
     const isActive = config.live_registration_active === '1';
     let withinDates = true;
     const now = Date.now();
@@ -148,7 +132,7 @@ module.exports = function () {
         });
       }
       const hash = bcrypt.hashSync(password, 10);
-      const info = await db.prepare('INSERT INTO teams (name, password_hash, operative_type, members_count, full_name) VALUES (?, ?, ?, ?, ?)').run(teamName.trim(), hash, 'Syndicate', 2, data['Full Name'] || 'Live CTF Team');
+      const info = await db.prepare('INSERT INTO teams (name, password_hash, operative_type, members_count, full_name, is_live) VALUES (?, ?, ?, ?, ?, 1)').run(teamName.trim(), hash, 'Syndicate', 2, data['Full Name'] || 'Live CTF Team');
       req.session.teamId = info.lastInsertRowid;
       req.session.teamName = teamName.trim();
 

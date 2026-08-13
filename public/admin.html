@@ -608,39 +608,49 @@ document.getElementById('addCatBtn').onclick = async () => {
 // ---------- Challenges ----------
 async function loadChallenges() {
   const challenges = await fetch('/api/admin/challenges').then(r => r.json());
-  const list = document.getElementById('challengeList');
-  list.innerHTML = challenges.map(c => `
-    <div class="table-row">
-      <div>
-        <div class="title">${escapeHtml(c.title)} <span style="color:var(--amber);">${c.points}pt</span></div>
-        <div class="sub">${escapeHtml(c.category || 'Uncategorized')} · ${c.solveCount} solve(s) · ${c.visible ? 'visible' : 'hidden'}</div>
-      </div>
-      <div class="row-actions">
-        <button class="btn-ghost btn-sm edit-chal" data-id="${c.id}">Edit</button>
-        <button class="btn-danger btn-sm delete-chal" data-id="${c.id}">Delete</button>
-      </div>
-    </div>
-  `).join('') || '<p>No challenges yet — add your first one.</p>';
+  const practiceList = document.getElementById('challengeList');
+  const liveList = document.getElementById('liveChallengeList');
 
-  list.querySelectorAll('.edit-chal').forEach(btn => {
-    btn.onclick = () => openEditor(challenges.find(c => c.id === Number(btn.dataset.id)));
-  });
-  list.querySelectorAll('.delete-chal').forEach(btn => {
-    btn.onclick = async () => {
-      if (!confirm('Delete this challenge? This cannot be undone.')) return;
-      await fetch(`/api/admin/challenges/${btn.dataset.id}`, { method: 'DELETE' });
-      loadChallenges();
-    };
-  });
+  const renderChals = (chals, listEl, isLiveContext) => {
+    if (!listEl) return;
+    listEl.innerHTML = chals.map(c => `
+      <div class="table-row">
+        <div>
+          <div class="title">${escapeHtml(c.title)} <span style="color:var(--amber);">${c.points}pt</span></div>
+          <div class="sub">${escapeHtml(c.category || 'Uncategorized')} · ${c.solveCount} solve(s) · ${c.visible ? 'visible' : 'hidden'}</div>
+        </div>
+        <div class="row-actions">
+          <button class="btn-ghost btn-sm edit-chal" data-id="${c.id}">Edit</button>
+          <button class="btn-danger btn-sm delete-chal" data-id="${c.id}">Delete</button>
+        </div>
+      </div>
+    `).join('') || '<p>No challenges yet.</p>';
+
+    listEl.querySelectorAll('.edit-chal').forEach(btn => {
+      btn.onclick = () => openEditor(chals.find(c => c.id === Number(btn.dataset.id)), isLiveContext);
+    });
+    listEl.querySelectorAll('.delete-chal').forEach(btn => {
+      btn.onclick = async () => {
+        if (!confirm('Delete this challenge? This cannot be undone.')) return;
+        await fetch(`/api/admin/challenges/${btn.dataset.id}`, { method: 'DELETE' });
+        loadChallenges();
+      };
+    });
+  };
+
+  renderChals(challenges.filter(c => c.is_practice === 1), practiceList, false);
+  renderChals(challenges.filter(c => c.is_practice === 0), liveList, true);
 }
 
-document.getElementById('newChallengeBtn').onclick = () => openEditor(null);
+document.getElementById('newChallengeBtn').onclick = () => openEditor(null, false);
+const liveBtn = document.getElementById('newLiveChallengeBtn');
+if (liveBtn) liveBtn.onclick = () => openEditor(null, true);
 
 function catOptions(selectedId) {
   return categories.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
 }
 
-function openEditor(challenge) {
+function openEditor(challenge, isLiveContext = false) {
   editingChallengeId = challenge ? challenge.id : null;
   const hints = challenge?.hints || [];
 
@@ -683,8 +693,8 @@ function openEditor(challenge) {
     </div>
 
     <label style="display:flex; align-items:center; gap:8px; margin-bottom:15px; cursor:pointer;">
-      <input type="checkbox" id="fIsPractice" style="width:auto; margin:0;" ${challenge?.is_practice ? 'checked' : ''}>
-      Is Practice Challenge? (Only visible in Practice Mode)
+      <input type="checkbox" id="fIsPractice" style="width:auto; margin:0;" ${(challenge ? challenge.is_practice : !isLiveContext) ? 'checked' : ''}>
+      Is Practice Challenge? (Uncheck for Live CTF challenges)
     </label>
 
     <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:15px;">

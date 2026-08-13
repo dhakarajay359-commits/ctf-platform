@@ -322,6 +322,7 @@
     <div class="health-bar-text" id="healthText">100.0% GLOBAL NETWORK INTEGRITY</div>
   </div>
 
+  <div class="category-tabs" id="modeTabs" style="margin-bottom:10px; display:none;"></div>
   <div class="category-tabs" id="categoryTabs"></div>
 
 
@@ -472,6 +473,7 @@
 <script>
 let challenges = [];
 let activeCategory = 'All';
+let activeMode = 'Practice';
 let fingerprintChartObj = null;
 
 async function loadHealth() {
@@ -489,6 +491,20 @@ async function loadHealth() {
     }
   }
 }
+
+window.setMode = function(mode) {
+  activeMode = mode;
+  activeCategory = 'All';
+  const modeTabs = document.getElementById('modeTabs');
+  if (modeTabs) {
+    modeTabs.innerHTML = `
+      <button class="${activeMode === 'Practice' ? 'active' : ''}" onclick="setMode('Practice')">Practice Arena</button>
+      <button class="${activeMode === 'Live' ? 'active' : ''}" onclick="setMode('Live')">Live CTF <span class="live-dot" style="display:inline-block; margin-left:5px;"></span></button>
+    `;
+  }
+  renderCategories();
+  renderGrid();
+};
 
 async function loadChallenges() {
   const res = await fetch('/api/challenges');
@@ -538,6 +554,24 @@ async function loadChallenges() {
   }
   
   challenges = data;
+  
+  const hasLive = challenges.some(c => c.is_practice === 0);
+  const hasPractice = challenges.some(c => c.is_practice === 1);
+  if (hasLive && !hasPractice) activeMode = 'Live';
+
+  const modeTabs = document.getElementById('modeTabs');
+  if (modeTabs) {
+    if (hasLive && hasPractice) {
+      modeTabs.innerHTML = `
+        <button class="${activeMode === 'Practice' ? 'active' : ''}" onclick="setMode('Practice')">Practice Arena</button>
+        <button class="${activeMode === 'Live' ? 'active' : ''}" onclick="setMode('Live')">Live CTF <span class="live-dot" style="display:inline-block; margin-left:5px;"></span></button>
+      `;
+      modeTabs.style.display = 'block';
+    } else {
+      modeTabs.style.display = 'none';
+    }
+  }
+
   renderCategories();
   renderGrid();
   loadHealth();
@@ -703,7 +737,8 @@ setInterval(loadTrendingHeat, 10000);
 
 
 function renderCategories() {
-  const cats = ['All', ...new Set(challenges.map(c => c.category || 'Uncategorized'))];
+  const modeFiltered = challenges.filter(c => (activeMode === 'Practice') ? (c.is_practice === 1) : (c.is_practice === 0));
+  const cats = ['All', ...new Set(modeFiltered.map(c => c.category || 'Uncategorized'))];
   const tabs = document.getElementById('categoryTabs');
   tabs.innerHTML = '';
   cats.forEach(cat => {
@@ -719,7 +754,9 @@ function renderGrid() {
   const grid = document.getElementById('grid');
   grid.innerHTML = '';
   
-  const filtered = activeCategory === 'All' ? challenges : challenges.filter(c => (c.category || 'Uncategorized') === activeCategory);
+  const modeFiltered = challenges.filter(c => (activeMode === 'Practice') ? (c.is_practice === 1) : (c.is_practice === 0));
+  const filtered = activeCategory === 'All' ? modeFiltered : modeFiltered.filter(c => (c.category || 'Uncategorized') === activeCategory);
+  
   if (filtered.length === 0) {
     grid.innerHTML = '<p>No active targets detected in this sector.</p>';
     return;

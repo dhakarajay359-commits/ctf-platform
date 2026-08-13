@@ -39,52 +39,87 @@ module.exports = function (io) {
     });
   });
 
-  // Middleware to check if CTF has started
   const checkCTFStarted = async (req, res, next) => {
-    const ctfStatusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
-    const isLive = ctfStatusRow && ctfStatusRow.value === 'live';
-    
-    if (isLive) {
-      const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
-      if (liveStartRow && liveStartRow.value) {
-        const liveStartTime = new Date(liveStartRow.value).getTime();
-        if (Date.now() < liveStartTime) {
-          return res.status(403).json({
-            error: 'Live CTF has not started yet.',
-            upcoming: true,
-            startTime: liveStartTime
-          });
-        }
-      }
-    } else {
-      const startRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_start_time'").get();
-      if (startRow && startRow.value) {
-        const startTime = Number(startRow.value);
-        if (Date.now() < startTime) {
-          return res.status(403).json({
-            error: 'CTF has not started yet.',
-            upcoming: true,
-            startTime
-          });
-        }
+    const isGlobal = !req.params.id && !req.params.hintId;
+    if (isGlobal) return next(); // Let GET / and GET /graph filter themselves
+
+    let isPractice = false;
+    if (req.params.id) {
+       const chal = await db.prepare('SELECT is_practice FROM challenges WHERE id = ?').get(req.params.id);
+       if (chal && chal.is_practice === 1) isPractice = true;
+    } else if (req.params.hintId) {
+       const chal = await db.prepare('SELECT c.is_practice FROM challenges c JOIN hints h ON h.challenge_id = c.id WHERE h.id = ?').get(req.params.hintId);
+       if (chal && chal.is_practice === 1) isPractice = true;
+    }
+
+    if (isPractice) return next(); // Practice challenges are always accessible
+
+    // Now check Live CTF timing
+    const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
+    if (liveStartRow && liveStartRow.value) {
+      const liveStartTime = new Date(liveStartRow.value).getTime();
+      if (Date.now() < liveStartTime) {
+        return res.status(403).json({
+          error: 'Live CTF has not started yet.',
+          upcoming: true,
+          startTime: liveStartTime
+        });
       }
     }
+    
+    // Check if team is a Live team
+    if (req.session.teamId) {
+       const team = await db.prepare('SELECT is_live FROM teams WHERE id = ?').get(req.session.teamId);
+       if (!team || team.is_live !== 1) {
+           return res.status(403).json({
+               error: 'You must register for the Live CTF to access this challenge.'
+           });
+       }
+    }
+
     next();
   };
 
   // List all visible challenges, with per-team solve/hint state
   router.get('/', checkCTFStarted, async (req, res) => {
     const teamId = req.session.teamId || null;
-    const statusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
-    const ctfStatus = statusRow ? statusRow.value : 'practice';
+    let isLiveTeam = false;
+    if (teamId) {
+      const team = await db.prepare('SELECT is_live FROM teams WHERE id = ?').get(teamId);
+      if (team && team.is_live === 1) isLiveTeam = true;
+    }
+    
+    // Check if Live CTF has started
+    let liveStarted = false;
+    const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
+    if (liveStartRow && liveStartRow.value) {
+      const liveStartTime = new Date(liveStartRow.value).getTime();
+      if (Date.now() >= liveStartTime) {
+        liveStarted = true;
+      }
+    } else {
+      liveStarted = true; // If no start time set, assume it's always open if you're a live team
+    }
+
     const challenges = await db.prepare(`
       SELECT c.id, c.title, c.category_id, cat.name AS category, c.description,
              c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice
       FROM challenges c
       LEFT JOIN categories cat ON cat.id = c.category_id
-      WHERE c.visible = 1 ${ctfStatus === 'practice' ? 'AND c.is_practice = 1' : ''}
+      WHERE c.visible = 1
       ORDER BY cat.name, c.points ASC
     `).all();
+    
+    // Filter challenges based on rules
+    const visibleChallenges = challenges.filter(c => {
+      if (c.is_practice === 1) return true; // Practice always visible
+      if (c.is_practice === 0) {
+        // Live challenges only visible to Live Teams after CTF has started
+        return isLiveTeam && liveStarted;
+      }
+      return false;
+    });
+
     const solvedIds = teamId ? new Set((await db.prepare('SELECT challenge_id FROM solves WHERE team_id = ?').all(teamId)).map(r => r.challenge_id)) : new Set();
     const claims = teamId ? (await db.prepare('SELECT challenge_id, operative_alias FROM challenge_claims WHERE team_id = ?').all(teamId)).reduce((acc, row) => {
       acc[row.challenge_id] = row.operative_alias;
@@ -92,7 +127,7 @@ module.exports = function (io) {
     }, {}) : {};
     const revealedHintIds = teamId ? new Set((await db.prepare('SELECT hint_id FROM hint_reveals WHERE team_id = ?').all(teamId)).map(r => r.hint_id)) : new Set();
     const hintsByChallenge = await db.prepare('SELECT * FROM hints ORDER BY order_index ASC').all();
-    const result = challenges.map(c => {
+    const result = visibleChallenges.map(c => {
       const hints = hintsByChallenge.filter(h => h.challenge_id === c.id).map(h => ({
         id: h.id,
         cost: h.cost,

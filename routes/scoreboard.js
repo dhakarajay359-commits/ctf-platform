@@ -6,25 +6,41 @@ async function computeScoreboard() {
   const solvePoints = await db.prepare(`
     SELECT s.team_id AS team_id, SUM(COALESCE(s.awarded_points, c.points)) AS earned, MAX(s.solved_at) AS last_solve
     FROM solves s JOIN challenges c ON c.id = s.challenge_id
+    WHERE c.is_practice = 0
     GROUP BY s.team_id
   `).all();
   const solveMap = new Map(solvePoints.map(r => [r.team_id, r]));
   const hintCosts = await db.prepare(`
     SELECT hr.team_id AS team_id, SUM(h.cost) AS spent
-    FROM hint_reveals hr JOIN hints h ON h.id = hr.hint_id
+    FROM hint_reveals hr 
+    JOIN hints h ON h.id = hr.hint_id
+    JOIN challenges c ON c.id = h.challenge_id
+    WHERE c.is_practice = 0
     GROUP BY hr.team_id
   `).all();
   const hintMap = new Map(hintCosts.map(r => [r.team_id, r.spent]));
   const kothPoints = await db.prepare('SELECT team_id, points FROM koth_points').all();
   const kothMap = new Map(kothPoints.map(r => [r.team_id, r.points]));
   const solveCounts = await db.prepare(`
-    SELECT team_id, COUNT(*) AS n FROM solves GROUP BY team_id
+    SELECT s.team_id, COUNT(*) AS n 
+    FROM solves s JOIN challenges c ON c.id = s.challenge_id
+    WHERE c.is_practice = 0
+    GROUP BY s.team_id
   `).all();
   const solveCountMap = new Map(solveCounts.map(r => [r.team_id, r.n]));
 
   // Badge Data Gathering
-  const allSolves = await db.prepare('SELECT team_id, challenge_id, solved_at, streak FROM solves ORDER BY solved_at ASC').all();
-  const wrongAttempts = await db.prepare('SELECT team_id FROM wrong_attempts').all();
+  const allSolves = await db.prepare(`
+    SELECT s.team_id, s.challenge_id, s.solved_at, s.streak 
+    FROM solves s JOIN challenges c ON c.id = s.challenge_id
+    WHERE c.is_practice = 0
+    ORDER BY s.solved_at ASC
+  `).all();
+  const wrongAttempts = await db.prepare(`
+    SELECT w.team_id 
+    FROM wrong_attempts w JOIN challenges c ON c.id = w.challenge_id
+    WHERE c.is_practice = 0
+  `).all();
   const wrongSet = new Set(wrongAttempts.map(w => w.team_id));
   const firstBloods = new Set();
   const seenChallenges = new Set();
@@ -97,7 +113,7 @@ router.get('/report/:teamId', async (req, res) => {
     FROM solves s
     JOIN challenges c ON c.id = s.challenge_id
     LEFT JOIN categories cat ON cat.id = c.category_id
-    WHERE s.team_id = ?
+    WHERE s.team_id = ? AND c.is_practice = 0
     GROUP BY cat.id
   `).all(teamId);
   res.json({
@@ -122,13 +138,14 @@ router.get('/graph', async (req, res) => {
     SELECT s.team_id, COALESCE(s.awarded_points, c.points) AS points, s.solved_at AS time, 'solve' AS type
     FROM solves s
     JOIN challenges c ON c.id = s.challenge_id
-    WHERE s.team_id IN (${placeholders})
+    WHERE s.team_id IN (${placeholders}) AND c.is_practice = 0
   `).all(...teamIds);
   const hints = await db.prepare(`
     SELECT hr.team_id, -h.cost AS points, hr.revealed_at AS time, 'hint' AS type
     FROM hint_reveals hr
     JOIN hints h ON h.id = hr.hint_id
-    WHERE hr.team_id IN (${placeholders})
+    JOIN challenges c ON c.id = h.challenge_id
+    WHERE hr.team_id IN (${placeholders}) AND c.is_practice = 0
   `).all(...teamIds);
   const events = [...solves, ...hints].sort((a, b) => {
     return new Date(a.time + 'Z').getTime() - new Date(b.time + 'Z').getTime();
