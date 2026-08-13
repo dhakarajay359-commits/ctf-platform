@@ -312,12 +312,19 @@ module.exports = function (io) {
     rows.forEach(r => obj[r.key] = r.value);
     res.json(obj);
   });
-  router.put('/settings', (req, res) => {
-    const update = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value');
-    for (const [k, v] of Object.entries(req.body || {})) update.run(k, String(v));
-    res.json({
-      ok: true
-    });
+  router.put('/settings', async (req, res) => {
+    try {
+      const update = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key');
+      for (const [k, v] of Object.entries(req.body || {})) {
+        await update.run(k, String(v));
+      }
+      res.json({
+        ok: true
+      });
+    } catch(e) {
+      console.error(e);
+      res.status(500).json({ error: 'Failed to save settings' });
+    }
   });
 
   // ---- Live Registration Submissions ----

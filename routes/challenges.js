@@ -421,7 +421,7 @@ module.exports = function (io) {
     if (already) return res.json({
       text: hint.text
     });
-    await db.prepare('INSERT INTO hint_reveals (team_id, hint_id) VALUES (?, ?)').run(teamId, hintId);
+    await db.prepare('INSERT INTO hint_reveals (team_id, hint_id) VALUES (?, ?) RETURNING team_id').run(teamId, hintId);
     if (hint.cost > 0) broadcastScoreboard(io);
     res.json({
       text: hint.text
