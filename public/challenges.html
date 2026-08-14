@@ -431,23 +431,7 @@
   </div>
 </div>
 
-<!-- Live CTF Waiting Room Modal -->
-<div class="modal-backdrop hidden" id="waitingRoomModal" style="z-index: 9999;">
-  <div class="modal challenge-card hard" style="max-width: 600px; text-align: center; padding: 40px;">
-    <div style="font-family: var(--mono); font-size: 14px; color: var(--success); letter-spacing: 2px; margin-bottom: 20px;">REGISTRATION SUCCESSFUL</div>
-    <h1 style="color: #fff; margin-bottom: 10px;">Waiting Room</h1>
-    <p style="color: var(--text-muted); font-size: 16px; margin-bottom: 30px;">The Live CTF has not started yet. Please wait for the administrator to begin the event.</p>
-    
-    <div style="background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); padding: 20px; border-radius: 4px; display: inline-block;">
-      <div style="font-family: var(--mono); font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">SCHEDULED START</div>
-      <div id="waitingRoomTime" style="font-size: 24px; color: var(--primary); font-weight: bold;">TBD</div>
-    </div>
-    
-    <div style="margin-top: 40px;">
-      <button class="btn-ghost" onclick="document.getElementById('waitingRoomModal').classList.add('hidden')">Return to Practice Area</button>
-    </div>
-  </div>
-</div>
+
 
 <!-- Feedback Modal -->
 <div class="modal-backdrop hidden" id="feedbackModal" style="z-index: 9999;">
@@ -1334,11 +1318,6 @@ Promise.all([
 ]).then(([me, settings]) => {
   if (me.team && !me.team.is_registered) {
     document.getElementById('liveRegisterBtn').classList.remove('hidden');
-  } else if (me.team && me.team.is_registered && settings.ctf_status === 'practice') {
-    document.getElementById('waitingRoomModal').classList.remove('hidden');
-    if (settings.start_time) {
-      document.getElementById('waitingRoomTime').textContent = new Date(Number(settings.start_time)).toLocaleString();
-    }
   }
 });
 
