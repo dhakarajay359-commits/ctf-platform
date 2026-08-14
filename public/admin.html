@@ -1263,17 +1263,21 @@ function openEditor(challenge, isLiveContext = true) {
     };
   }
 
-  document.getElementById('addHintRow').onclick = () => {
-    const row = document.createElement('div');
-    row.className = 'hint-row';
-    row.innerHTML = `
-      <input type="text" placeholder="Hint text">
-      <input type="number" placeholder="Cost" value="0">
-      <button type="button" class="btn-ghost btn-sm remove-hint">×</button>
-    `;
-    document.getElementById('hintsContainer').appendChild(row);
-    row.querySelector('.remove-hint').onclick = () => row.remove();
-  };
+  const addHintBtn = document.getElementById('addHintBtn') || document.getElementById('addHintRow');
+  if (addHintBtn) {
+    addHintBtn.onclick = () => {
+      const row = document.createElement('div');
+      row.className = 'field-row hint-row';
+      row.style.marginBottom = '8px';
+      row.innerHTML = `
+        <input placeholder="Hint text" style="flex:2;">
+        <input type="number" placeholder="Cost" value="0" style="flex:1;">
+        <button type="button" class="btn-ghost btn-sm remove-hint" style="flex:0 0 auto;">Remove</button>
+      `;
+      document.getElementById('hintsContainer').appendChild(row);
+      row.querySelector('.remove-hint').onclick = () => row.remove();
+    };
+  }
   document.querySelectorAll('.remove-hint').forEach(btn => {
     btn.onclick = () => btn.closest('.hint-row').remove();
   });
