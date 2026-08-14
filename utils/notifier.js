@@ -61,26 +61,63 @@ async function sendEmail({ to, subject, text, html }) {
   }
 }
 
+function formatPhoneNumber(phone) {
+  if (!phone) return '';
+  let clean = String(phone).replace(/[^\d]/g, '');
+  if (clean.length === 10) {
+    clean = '91' + clean;
+  }
+  return clean;
+}
+
 /**
  * Send WhatsApp / SMS via Webhook or REST API Gateway
  */
 async function sendWhatsApp({ phone, message, eventTitle }) {
   const config = await getNotificationConfig();
+  const cleanPhone = formatPhoneNumber(phone);
+  const directLink = `https://wa.me/${cleanPhone}?text=${encodeURIComponent(message || '')}`;
   const webhookUrl = config.whatsapp_webhook_url;
   
   if (!webhookUrl) {
-    console.log(`[Notifier] WhatsApp Gateway/Webhook not configured. Skipped phone ${phone}`);
-    return { success: false, error: 'WhatsApp Gateway / Webhook URL not configured.' };
+    console.log(`[Notifier] WhatsApp Gateway/Webhook not configured. Provided direct link for ${cleanPhone}`);
+    return { 
+      success: false, 
+      unconfigured: true,
+      directLink,
+      formattedPhone: cleanPhone,
+      error: 'WhatsApp Gateway / Webhook URL not configured. Configure a gateway or use the Direct WhatsApp Link.' 
+    };
   }
 
   return new Promise((resolve) => {
     try {
+      // Support CallMeBot GET API
+      if (webhookUrl.includes('callmebot.com')) {
+        const apiKey = config.whatsapp_api_token || '';
+        const getUrl = `https://api.callmebot.com/whatsapp.php?phone=${cleanPhone}&text=${encodeURIComponent(message)}&apikey=${apiKey}`;
+        https.get(getUrl, (res) => {
+          let body = '';
+          res.on('data', chunk => { body += chunk; });
+          res.on('end', () => {
+            if (res.statusCode >= 200 && res.statusCode < 300) {
+              resolve({ success: true, response: body, directLink });
+            } else {
+              resolve({ success: false, error: `CallMeBot returned ${res.statusCode}: ${body}`, directLink });
+            }
+          });
+        }).on('error', (err) => {
+          resolve({ success: false, error: err.message, directLink });
+        });
+        return;
+      }
+
       const parsed = url.parse(webhookUrl);
       const isHttps = parsed.protocol === 'https:';
       const client = isHttps ? https : http;
 
       const payload = JSON.stringify({
-        phone: String(phone).replace(/[^\d+]/g, ''),
+        phone: cleanPhone,
         message,
         event: eventTitle || 'Live CTF Event',
         token: config.whatsapp_api_token || undefined,
@@ -104,27 +141,27 @@ async function sendWhatsApp({ phone, message, eventTitle }) {
         res.on('data', chunk => { body += chunk; });
         res.on('end', () => {
           if (res.statusCode >= 200 && res.statusCode < 300) {
-            resolve({ success: true, response: body });
+            resolve({ success: true, response: body, directLink });
           } else {
-            resolve({ success: false, error: `Gateway returned status ${res.statusCode}: ${body}` });
+            resolve({ success: false, error: `Gateway returned status ${res.statusCode}: ${body}`, directLink });
           }
         });
       });
 
       req.on('error', (err) => {
-        console.error(`[Notifier] WhatsApp request error for ${phone}:`, err.message);
-        resolve({ success: false, error: err.message });
+        console.error(`[Notifier] WhatsApp request error for ${cleanPhone}:`, err.message);
+        resolve({ success: false, error: err.message, directLink });
       });
 
       req.setTimeout(10000, () => {
         req.destroy();
-        resolve({ success: false, error: 'WhatsApp Gateway timeout' });
+        resolve({ success: false, error: 'WhatsApp Gateway timeout', directLink });
       });
 
       req.write(payload);
       req.end();
     } catch (e) {
-      resolve({ success: false, error: e.message });
+      resolve({ success: false, error: e.message, directLink });
     }
   });
 }
