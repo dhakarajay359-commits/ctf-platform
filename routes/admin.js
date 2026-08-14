@@ -8,6 +8,7 @@ const {
   broadcastScoreboard
 } = require('./scoreboard');
 const state = require('../state');
+const notifier = require('../utils/notifier');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
@@ -312,7 +313,7 @@ module.exports = function (io) {
     rows.forEach(r => obj[r.key] = r.value);
     res.json(obj);
   });
-  router.put('/settings', async (req, res) => {
+  const saveSettingsHandler = async (req, res) => {
     try {
       const update = db.prepare('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value RETURNING key');
       for (const [k, v] of Object.entries(req.body || {})) {
@@ -325,7 +326,9 @@ module.exports = function (io) {
       console.error(e);
       res.status(500).json({ error: 'Failed to save settings' });
     }
-  });
+  };
+  router.put('/settings', saveSettingsHandler);
+  router.post('/settings', saveSettingsHandler);
 
   // ---- Live Registration Submissions ----
   router.get('/registration-submissions', async (req, res) => {
@@ -503,5 +506,68 @@ module.exports = function (io) {
       ok: true
     });
   });
+
+  // ---- Notification Broadcasts & Alerts ----
+  router.get('/notifications/contacts', async (req, res) => {
+    try {
+      const participants = await notifier.getRegisteredParticipants();
+      const config = await notifier.getNotificationConfig();
+      res.json({
+        totalParticipants: participants.length,
+        withEmail: participants.filter(p => p.email).length,
+        withPhone: participants.filter(p => p.phone).length,
+        smtpConfigured: !!(config.smtp_host && config.smtp_user),
+        whatsappConfigured: !!config.whatsapp_webhook_url,
+        participants
+      });
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post('/notifications/broadcast', async (req, res) => {
+    try {
+      const { message } = req.body;
+      const hostHeader = req.get('host');
+      const originUrl = `${req.protocol}://${hostHeader}`;
+      const result = await notifier.broadcastStartAlert(message || null, originUrl);
+      res.json({
+        ok: true,
+        result
+      });
+    } catch (e) {
+      console.error('Broadcast error:', e);
+      res.status(500).json({ error: e.message });
+    }
+  });
+
+  router.post('/notifications/test', async (req, res) => {
+    try {
+      const { type, target, message } = req.body;
+      if (!target) return res.status(400).json({ error: 'Target email or phone is required.' });
+
+      if (type === 'email') {
+        const result = await notifier.sendEmail({
+          to: target,
+          subject: '🔔 [TEST] CTF Notification Test',
+          text: message || 'This is a test notification from your CTF Platform.',
+          html: `<div style="font-family:sans-serif; padding:20px; background:#111; color:#fff; border-radius:6px;"><h3 style="color:#00d2ff;">🔔 CTF Notification Test</h3><p>${message || 'Your SMTP email configuration is working successfully!'}</p></div>`
+        });
+        return res.json(result);
+      } else if (type === 'whatsapp') {
+        const result = await notifier.sendWhatsApp({
+          phone: target,
+          message: message || '🔔 [TEST] This is a test alert from your CTF Platform WhatsApp Gateway.',
+          eventTitle: 'Test Event'
+        });
+        return res.json(result);
+      } else {
+        return res.status(400).json({ error: 'Invalid type (use email or whatsapp)' });
+      }
+    } catch (e) {
+      res.status(500).json({ error: e.message });
+    }
+  });
+
   return router;
 };

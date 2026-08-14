@@ -279,7 +279,10 @@ setInterval(async () => {
     console.error('Error auto-wiping live registration data', e);
   }
 }, 60 * 60 * 1000);
+const initScheduler = require('./utils/scheduler');
+
 db.initDb().then(() => {
+  initScheduler(io);
   server.listen(PORT, '0.0.0.0', () => {
     console.log(`CTF platform running on http://0.0.0.0:${PORT}`);
     if (!process.env.ADMIN_PASSWORD) {

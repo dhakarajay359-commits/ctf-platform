@@ -53,6 +53,7 @@
         <button data-section="anomaly">Anomalies ⚠</button>
         <button data-section="chat">Support Chat</button>
         <button data-section="feedback">Feedback</button>
+        <button data-section="notifications">Notifications & Alerts 📢</button>
         <button data-section="settings">Settings</button>
       </div>
 
@@ -243,6 +244,124 @@
           </div>
         </section>
 
+        <!-- NOTIFICATIONS & BROADCASTS -->
+        <section id="section-notifications" class="hidden">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
+            <h2 style="margin:0;">Participant Notifications & Alerts 📢</h2>
+            <button onclick="loadNotifications()" class="btn-ghost btn-sm">Refresh Stats</button>
+          </div>
+          <p style="color:var(--text-muted);">Send automated and custom Email & WhatsApp notifications to participants who registered for the Live CTF.</p>
+
+          <!-- Contact Stats -->
+          <div style="display:grid; grid-template-columns: repeat(auto-fit, minmax(200px, 1fr)); gap:15px; margin-bottom:24px;">
+            <div style="background:var(--panel-bg); border:1px solid var(--border-color); padding:16px; border-radius:6px; text-align:center;">
+              <div style="font-size:28px; font-weight:bold; color:var(--primary);" id="notifTotalCount">0</div>
+              <div style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">TOTAL REGISTERED</div>
+            </div>
+            <div style="background:var(--panel-bg); border:1px solid var(--border-color); padding:16px; border-radius:6px; text-align:center;">
+              <div style="font-size:28px; font-weight:bold; color:var(--success);" id="notifEmailCount">0</div>
+              <div style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">VALID EMAIL ADDRESSES</div>
+            </div>
+            <div style="background:var(--panel-bg); border:1px solid var(--border-color); padding:16px; border-radius:6px; text-align:center;">
+              <div style="font-size:28px; font-weight:bold; color:#25D366;" id="notifPhoneCount">0</div>
+              <div style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">WHATSAPP / MOBILE NOS.</div>
+            </div>
+          </div>
+
+          <!-- Instant Broadcast Card -->
+          <div class="panel" style="margin-bottom:24px; border: 1px solid var(--primary); background: rgba(0, 210, 255, 0.03);">
+            <h3 style="margin-top:0; color:var(--primary); display:flex; align-items:center; gap:8px;">
+              <span>🚨</span> One-Click Start Alert Broadcast
+            </h3>
+            <p style="color:var(--text-muted); font-size:14px;">
+              Dispatches an immediate start notification (Email + WhatsApp) with event times, team access link, and challenge status to all registered participants.
+            </p>
+            <label>Custom Alert Message (Optional - Leave blank for default formatted alert):</label>
+            <textarea id="broadcastCustomMsg" placeholder="Leave empty to send default official event start announcement..." style="width:100%; height:70px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); color:#fff; padding:10px; margin-bottom:15px; font-family:var(--mono);"></textarea>
+            
+            <div style="display:flex; gap:12px; align-items:center; flex-wrap:wrap;">
+              <button id="sendBroadcastBtn" class="btn-primary" style="font-size:15px; padding:10px 20px;">
+                🚀 Broadcast CTF Start Alert Now (Email + WhatsApp)
+              </button>
+              <span id="broadcastLoading" class="hidden" style="color:var(--primary); font-family:var(--mono); font-size:13px;">Sending broadcasts... Please wait...</span>
+            </div>
+            <div id="broadcastResult" style="margin-top:15px;"></div>
+          </div>
+
+          <!-- Gateway Settings Tabs -->
+          <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px;">
+            <!-- Email / SMTP Settings -->
+            <div class="panel">
+              <h3 style="margin-top:0;">📧 Email (SMTP) Configuration</h3>
+              <p style="color:var(--text-muted); font-size:13px;">Configure your SMTP server to deliver branded email alerts to participants.</p>
+              
+              <label>SMTP Host</label>
+              <input id="smtpHost" placeholder="e.g. smtp.gmail.com or smtp.mailgun.org">
+              
+              <div class="field-row">
+                <div>
+                  <label>SMTP Port</label>
+                  <input id="smtpPort" placeholder="587 or 465" type="number">
+                </div>
+                <div>
+                  <label>SSL/TLS</label>
+                  <select id="smtpSecure">
+                    <option value="0">TLS (Port 587)</option>
+                    <option value="1">SSL (Port 465)</option>
+                  </select>
+                </div>
+              </div>
+
+              <label>SMTP Username / Email</label>
+              <input id="smtpUser" placeholder="e.g. alerts@yourdomain.com">
+
+              <label>SMTP Password / App Password</label>
+              <input id="smtpPass" type="password" placeholder="••••••••••••">
+
+              <label>Sender Address ("From")</label>
+              <input id="smtpFrom" placeholder="e.g. ctf-support@yourdomain.com">
+
+              <div style="display:flex; gap:10px; margin-top:15px;">
+                <button id="saveSmtpBtn" class="btn-primary">Save Email Settings</button>
+              </div>
+              <div id="smtpMsg" style="margin-top:10px;"></div>
+
+              <hr style="border:none; border-top:1px solid var(--border-color); margin:15px 0;">
+              <h4 style="margin:0 0 10px 0;">Test Email Delivery</h4>
+              <div class="field-row">
+                <input id="testEmailTarget" placeholder="test-user@example.com">
+                <button id="sendTestEmailBtn" class="btn-ghost btn-sm" style="flex:0 0 auto;">Send Test</button>
+              </div>
+              <div id="testEmailMsg" style="margin-top:8px;"></div>
+            </div>
+
+            <!-- WhatsApp Gateway Settings -->
+            <div class="panel">
+              <h3 style="margin-top:0; color:#25D366;">💬 WhatsApp / SMS Gateway</h3>
+              <p style="color:var(--text-muted); font-size:13px;">Integrate with your WhatsApp API Gateway, Twilio, UltraMsg, WPPConnect, or custom HTTP Webhook.</p>
+              
+              <label>Webhook / API Endpoint URL</label>
+              <input id="waWebhookUrl" placeholder="https://api.ultramsg.com/... or https://your-wa-gateway.com/send">
+              
+              <label>API Bearer Token / Secret (Optional)</label>
+              <input id="waApiToken" type="password" placeholder="Your Gateway Token / Secret">
+
+              <div style="display:flex; gap:10px; margin-top:20px;">
+                <button id="saveWaBtn" class="btn-primary">Save WhatsApp Settings</button>
+              </div>
+              <div id="waMsg" style="margin-top:10px;"></div>
+
+              <hr style="border:none; border-top:1px solid var(--border-color); margin:15px 0;">
+              <h4 style="margin:0 0 10px 0;">Test WhatsApp Delivery</h4>
+              <div class="field-row">
+                <input id="testWaTarget" placeholder="+919876543210 (with country code)">
+                <button id="sendTestWaBtn" class="btn-ghost btn-sm" style="flex:0 0 auto;">Send Test</button>
+              </div>
+              <div id="testWaMsg" style="margin-top:8px;"></div>
+            </div>
+          </div>
+        </section>
+
         <!-- SETTINGS -->
         <section id="section-settings" class="hidden">
           <h2>Event settings</h2>
@@ -254,11 +373,21 @@
             <option value="0">Closed</option>
           </select>
           
-          <label for="setCtfStatus">CTF Engine Status</label>
-          <select id="setCtfStatus" style="margin-bottom:20px;">
-            <option value="practice">Practice Mode (Only practice challenges visible)</option>
-            <option value="live">Live Event (All challenges visible)</option>
+          <label for="setCtfStatus">CTF Engine Mode</label>
+          <select id="setCtfStatus" style="margin-bottom:10px;">
+            <option value="auto">⚡ Auto Mode (Starts & Ends Automatically by Schedule Time)</option>
+            <option value="live">🔴 Force Live (All challenges immediately visible to all live players)</option>
+            <option value="practice">🛡 Practice Mode Only (Live challenges hidden)</option>
+            <option value="ended">🏁 Event Concluded</option>
           </select>
+          <p style="font-size:12px; color:var(--text-muted); margin-top:0; margin-bottom:20px;">
+            <strong>Auto Mode:</strong> The platform reads your scheduled start & end dates/times (e.g. 10:00 AM to 10:00 PM today) and automatically opens challenge servers at start time without requiring manual intervention.
+          </p>
+
+          <label style="display:flex; align-items:center; gap:8px; margin-bottom:20px; cursor:pointer;">
+            <input type="checkbox" id="setAutoNotify" style="width:auto;">
+            <span>Automatically dispatch Email & WhatsApp start alerts when schedule reaches start time</span>
+          </label>
           
           <label for="setHeadline">Global Headline / Announcement</label>
           <textarea id="setHeadline" placeholder="Broadcast a message to all players..." style="width: 100%; height: 80px; margin-bottom: 20px; font-family: var(--mono); padding: 10px; background: rgba(0,0,0,0.2); border: 1px solid var(--border-color); color: #fff;"></textarea>
@@ -374,9 +503,204 @@ async function initDashboard() {
   await loadTeams();
   await loadRegistrations();
   await loadAnomaly();
+  await loadNotifications();
   await loadSettings();
   await loadAnalytics();
 }
+
+// ---------- Notifications & Alerts ----------
+async function loadNotifications() {
+  try {
+    const res = await fetch('/api/admin/notifications/contacts');
+    if (!res.ok) return;
+    const data = await res.json();
+
+    document.getElementById('notifTotalCount').textContent = data.totalParticipants || 0;
+    document.getElementById('notifEmailCount').textContent = data.withEmail || 0;
+    document.getElementById('notifPhoneCount').textContent = data.withPhone || 0;
+
+    // Load saved settings
+    const settings = await fetch('/api/admin/settings').then(r => r.json());
+    document.getElementById('smtpHost').value = settings.smtp_host || '';
+    document.getElementById('smtpPort').value = settings.smtp_port || '587';
+    document.getElementById('smtpSecure').value = settings.smtp_secure || '0';
+    document.getElementById('smtpUser').value = settings.smtp_user || '';
+    document.getElementById('smtpPass').value = settings.smtp_pass || '';
+    document.getElementById('smtpFrom').value = settings.smtp_from || '';
+
+    document.getElementById('waWebhookUrl').value = settings.whatsapp_webhook_url || '';
+    document.getElementById('waApiToken').value = settings.whatsapp_api_token || '';
+  } catch (e) {
+    console.error('Failed to load notification settings:', e);
+  }
+}
+
+// Save SMTP Settings
+document.getElementById('saveSmtpBtn').onclick = async () => {
+  const host = document.getElementById('smtpHost').value.trim();
+  const port = document.getElementById('smtpPort').value.trim();
+  const secure = document.getElementById('smtpSecure').value;
+  const user = document.getElementById('smtpUser').value.trim();
+  const pass = document.getElementById('smtpPass').value.trim();
+  const from = document.getElementById('smtpFrom').value.trim();
+
+  const res = await fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      smtp_host: host,
+      smtp_port: port,
+      smtp_secure: secure,
+      smtp_user: user,
+      smtp_pass: pass,
+      smtp_from: from
+    })
+  });
+  const msg = document.getElementById('smtpMsg');
+  msg.innerHTML = res.ok ? '<div class="alert alert-success">SMTP configuration saved.</div>' : '<div class="alert alert-error">Failed to save SMTP.</div>';
+  setTimeout(() => { msg.innerHTML = ''; }, 4000);
+};
+
+// Send Test Email
+document.getElementById('sendTestEmailBtn').onclick = async () => {
+  const target = document.getElementById('testEmailTarget').value.trim();
+  const msgEl = document.getElementById('testEmailMsg');
+  if (!target) return alert('Enter a destination email address.');
+  
+  msgEl.innerHTML = '<span style="color:var(--primary); font-size:12px;">Sending test email...</span>';
+  const res = await fetch('/api/admin/notifications/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'email', target })
+  });
+  const data = await res.json();
+  if (data.success) {
+    msgEl.innerHTML = '<div class="alert alert-success" style="font-size:12px; padding:6px;">✓ Test email sent successfully!</div>';
+  } else {
+    msgEl.innerHTML = `<div class="alert alert-error" style="font-size:12px; padding:6px;">✗ Error: ${escapeHtml(data.error || 'Failed to send')}</div>`;
+  }
+};
+
+// Save WhatsApp Settings
+document.getElementById('saveWaBtn').onclick = async () => {
+  const url = document.getElementById('waWebhookUrl').value.trim();
+  const token = document.getElementById('waApiToken').value.trim();
+
+  const res = await fetch('/api/admin/settings', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      whatsapp_webhook_url: url,
+      whatsapp_api_token: token
+    })
+  });
+  const msg = document.getElementById('waMsg');
+  msg.innerHTML = res.ok ? '<div class="alert alert-success">WhatsApp Gateway settings saved.</div>' : '<div class="alert alert-error">Failed to save WhatsApp settings.</div>';
+  setTimeout(() => { msg.innerHTML = ''; }, 4000);
+};
+
+// Send Test WhatsApp
+document.getElementById('sendTestWaBtn').onclick = async () => {
+  const target = document.getElementById('testWaTarget').value.trim();
+  const msgEl = document.getElementById('testWaMsg');
+  if (!target) return alert('Enter a destination phone number with country code (e.g. +91...).');
+  
+  msgEl.innerHTML = '<span style="color:var(--primary); font-size:12px;">Sending test WhatsApp...</span>';
+  const res = await fetch('/api/admin/notifications/test', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ type: 'whatsapp', target })
+  });
+  const data = await res.json();
+  if (data.success) {
+    msgEl.innerHTML = '<div class="alert alert-success" style="font-size:12px; padding:6px;">✓ Test WhatsApp message dispatched!</div>';
+  } else {
+    msgEl.innerHTML = `<div class="alert alert-error" style="font-size:12px; padding:6px;">✗ Error: ${escapeHtml(data.error || 'Failed to send')}</div>`;
+  }
+};
+
+// Send Broadcast to all
+document.getElementById('sendBroadcastBtn').onclick = async () => {
+  const customMessage = document.getElementById('broadcastCustomMsg').value.trim();
+  const loading = document.getElementById('broadcastLoading');
+  const resultDiv = document.getElementById('broadcastResult');
+
+  const count = document.getElementById('notifTotalCount').textContent;
+  if (!confirm(`Are you sure you want to broadcast this start alert to all ${count} registered participants?`)) {
+    return;
+  }
+
+  loading.classList.remove('hidden');
+  resultDiv.innerHTML = '';
+
+  try {
+    const res = await fetch('/api/admin/notifications/broadcast', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: customMessage || null })
+    });
+    const data = await res.json();
+    loading.classList.add('hidden');
+
+    if (res.ok && data.ok) {
+      const r = data.result;
+      resultDiv.innerHTML = `
+        <div class="alert alert-success" style="line-height:1.6;">
+          <strong>✓ Broadcast Complete!</strong><br>
+          • Total Participants Processed: <strong>${r.total}</strong><br>
+          • Emails Sent: <strong>${r.emailSent}</strong> (${r.emailFailed} failed/skipped)<br>
+          • WhatsApp Messages Sent: <strong>${r.whatsappSent}</strong> (${r.whatsappFailed} failed/skipped)
+        </div>
+      `;
+    } else {
+      resultDiv.innerHTML = `<div class="alert alert-error">Broadcast failed: ${escapeHtml(data.error || 'Unknown error')}</div>`;
+    }
+  } catch (err) {
+    loading.classList.add('hidden');
+    resultDiv.innerHTML = `<div class="alert alert-error">Network error sending broadcast.</div>`;
+  }
+};
+
+// ---------- Settings ----------
+async function loadSettings() {
+  const settings = await fetch('/api/admin/settings').then(r => r.json());
+  document.getElementById('setEventName').value = settings.event_name || '';
+  document.getElementById('setRegOpen').value = settings.registration_open || '1';
+  document.getElementById('setCtfStatus').value = settings.ctf_status || 'auto';
+  const autoNotify = document.getElementById('setAutoNotify');
+  if (autoNotify) autoNotify.checked = settings.auto_notify_start === '1';
+  const headlineInput = document.getElementById('setHeadline');
+  if (headlineInput) headlineInput.value = settings.headline || '';
+  if (settings.ctf_start_time) {
+    const d = new Date(Number(settings.ctf_start_time));
+    d.setMinutes(d.getMinutes() - d.getTimezoneOffset());
+    document.getElementById('timerStart').value = d.toISOString().slice(0, 16);
+  } else {
+    document.getElementById('timerStart').value = '';
+  }
+}
+
+document.getElementById('saveSettingsBtn').onclick = async () => {
+  const eventName = document.getElementById('setEventName').value;
+  const regOpen = document.getElementById('setRegOpen').value;
+  const ctfStatus = document.getElementById('setCtfStatus').value;
+  const autoNotify = document.getElementById('setAutoNotify') ? (document.getElementById('setAutoNotify').checked ? '1' : '0') : '0';
+  const headline = document.getElementById('setHeadline').value;
+
+  const res = await fetch('/api/admin/settings', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ 
+      event_name: eventName, 
+      registration_open: regOpen, 
+      headline, 
+      ctf_status: ctfStatus,
+      auto_notify_start: autoNotify
+    })
+  });
+  const msg = document.getElementById('settingsMsg');
+  msg.innerHTML = res.ok ? '<div class="alert alert-success">Settings saved successfully.</div>' : '<div class="alert alert-error">Failed to save settings.</div>';
+  setTimeout(() => { msg.innerHTML = ''; }, 4000);
+};
 
 async function loadAnalytics() {
   const challenges = await fetch('/api/admin/challenges').then(r => r.json());

@@ -56,7 +56,11 @@ module.exports = function (io) {
 
     // Now check Live CTF timing
     const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
-    if (liveStartRow && liveStartRow.value) {
+    const liveEndRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
+    const statusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
+    const isManualLive = statusRow && statusRow.value === 'live';
+
+    if (!isManualLive && liveStartRow && liveStartRow.value) {
       const liveStartTime = new Date(liveStartRow.value).getTime();
       if (Date.now() < liveStartTime) {
         return res.status(403).json({
@@ -89,36 +93,40 @@ module.exports = function (io) {
       if (team && team.is_live === 1) isLiveTeam = true;
     }
     
-    // Check if Live CTF has started
+    // Check if Live CTF has started (either time has arrived or admin forced live)
     let liveStarted = false;
     const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
-    if (liveStartRow && liveStartRow.value) {
+    const statusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
+    
+    if (statusRow && statusRow.value === 'live') {
+      liveStarted = true;
+    } else if (liveStartRow && liveStartRow.value) {
       const liveStartTime = new Date(liveStartRow.value).getTime();
       if (Date.now() >= liveStartTime) {
         liveStarted = true;
       }
     } else {
-      liveStarted = true; // If no start time set, assume it's always open if you're a live team
+      liveStarted = true;
     }
 
     const challenges = await db.prepare(`
       SELECT c.id, c.title, c.category_id, cat.name AS category, c.description,
              c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice
-      FROM challenges c
-      LEFT JOIN categories cat ON cat.id = c.category_id
-      WHERE c.visible = 1
-      ORDER BY cat.name, c.points ASC
-    `).all();
-    
-    // Filter challenges based on rules
-    const visibleChallenges = challenges.filter(c => {
-      if (c.is_practice === 1) return true; // Practice always visible
-      if (c.is_practice === 0) {
-        // Live challenges only visible to Live Teams after CTF has started
-        return isLiveTeam && liveStarted;
-      }
-      return false;
-    });
+          FROM challenges c
+          LEFT JOIN categories cat ON cat.id = c.category_id
+          WHERE c.visible = 1
+          ORDER BY cat.name, c.points ASC
+        `).all();
+        
+        // Filter challenges based on rules
+        const visibleChallenges = challenges.filter(c => {
+          if (c.is_practice === 1) return true; // Practice always visible
+          if (c.is_practice === 0) {
+            // Live challenges only visible to Live Teams after CTF has started
+            return isLiveTeam && liveStarted;
+          }
+          return false;
+        });
 
     const solvedIds = teamId ? new Set((await db.prepare('SELECT challenge_id FROM solves WHERE team_id = ?').all(teamId)).map(r => r.challenge_id)) : new Set();
     const claims = teamId ? (await db.prepare('SELECT challenge_id, operative_alias FROM challenge_claims WHERE team_id = ?').all(teamId)).reduce((acc, row) => {

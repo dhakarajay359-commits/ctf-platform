@@ -30,10 +30,14 @@ const db = {
         try {
           let finalSql = pgSql;
           if (finalSql.trim().toUpperCase().startsWith('INSERT') && !finalSql.toUpperCase().includes('RETURNING')) {
-            finalSql = finalSql + ' RETURNING id';
+            if (finalSql.toUpperCase().includes('INTO SETTINGS')) {
+              finalSql = finalSql + ' RETURNING key';
+            } else {
+              finalSql = finalSql + ' RETURNING id';
+            }
           }
           const res = await pool.query(finalSql, params);
-          return { lastInsertRowid: res.rows[0]?.id, changes: res.rowCount };
+          return { lastInsertRowid: res.rows[0]?.id || res.rows[0]?.key, changes: res.rowCount };
         } catch(e) { console.error('DB RUN ERROR:', e); throw e; }
       }
     };
