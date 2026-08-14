@@ -250,6 +250,21 @@ module.exports = function (io) {
       ok: true
     });
   });
+  
+  router.post('/challenges/move-all-to-practice', async (req, res) => {
+    await db.prepare('UPDATE challenges SET is_practice = 1 WHERE is_practice = 0').run();
+    res.json({ ok: true, message: 'All Live CTF challenges moved to Practice Arena.' });
+  });
+
+  router.post('/challenges/:id/toggle-mode', async (req, res) => {
+    const id = Number(req.params.id);
+    const chal = await db.prepare('SELECT is_practice FROM challenges WHERE id = ?').get(id);
+    if (!chal) return res.status(404).json({ error: 'Challenge not found' });
+    const newPractice = chal.is_practice === 1 ? 0 : 1;
+    await db.prepare('UPDATE challenges SET is_practice = ? WHERE id = ?').run(newPractice, id);
+    res.json({ ok: true, is_practice: newPractice });
+  });
+
   router.delete('/challenges/:id', async (req, res) => {
     await db.prepare('DELETE FROM challenges WHERE id = ?').run(Number(req.params.id));
     broadcastScoreboard(io);

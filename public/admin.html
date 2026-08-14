@@ -71,9 +71,12 @@
 
           <!-- Live CTF Challenges -->
           <div style="margin-bottom:28px;">
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
-              <h3 style="margin:0; color:#00d2ff;">🔴 Live CTF Event Challenges</h3>
-              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Visible to Live CTF Players</span>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:8px; flex-wrap:wrap; gap:10px;">
+              <div>
+                <h3 style="margin:0; color:#00d2ff; display:inline-block;">🔴 Live CTF Event Challenges</h3>
+                <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono); margin-left:8px;">Visible to Live CTF Players</span>
+              </div>
+              <button id="moveAllToPracticeBtn" class="btn-ghost btn-sm" style="color:var(--success); border-color:var(--success); font-weight:bold;">📦 Move All Live Challenges to Practice</button>
             </div>
             <div id="liveChallengeList" class="table-list"></div>
           </div>
@@ -82,7 +85,7 @@
           <div>
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
               <h3 style="margin:0; color:#25D366;">🛡️ Practice Arena Challenges</h3>
-              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Open Practice Problems</span>
+              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Open Practice Problems (Available to Everyone)</span>
             </div>
             <div id="challengeList" class="table-list"></div>
           </div>
@@ -1080,7 +1083,10 @@ async function loadChallenges() {
           <div class="title">${escapeHtml(c.title)} <span style="color:var(--amber);">${c.points}pt</span></div>
           <div class="sub">${escapeHtml(c.category || 'Uncategorized')} · ${c.solveCount} solve(s) · ${c.visible ? 'visible' : 'hidden'}</div>
         </div>
-        <div class="row-actions">
+        <div class="row-actions" style="display:flex; gap:6px; align-items:center;">
+          <button class="btn-ghost btn-sm toggle-mode-chal" data-id="${c.id}" style="${c.is_practice === 0 ? 'color:var(--success); border-color:var(--success);' : 'color:#00d2ff; border-color:#00d2ff;'}" title="${c.is_practice === 0 ? 'Move to Practice Arena' : 'Move to Live CTF'}">
+            ${c.is_practice === 0 ? '🛡️ To Practice' : '🔴 To Live'}
+          </button>
           <button class="btn-ghost btn-sm edit-chal" data-id="${c.id}">Edit</button>
           <button class="btn-danger btn-sm delete-chal" data-id="${c.id}">Delete</button>
         </div>
@@ -1089,6 +1095,15 @@ async function loadChallenges() {
 
     listEl.querySelectorAll('.edit-chal').forEach(btn => {
       btn.onclick = () => openEditor(chals.find(c => c.id === Number(btn.dataset.id)), isLiveContext);
+    });
+    listEl.querySelectorAll('.toggle-mode-chal').forEach(btn => {
+      btn.onclick = async () => {
+        const id = Number(btn.dataset.id);
+        const res = await fetch(`/api/admin/challenges/${id}/toggle-mode`, { method: 'POST' });
+        if (res.ok) {
+          loadChallenges();
+        }
+      };
     });
     listEl.querySelectorAll('.delete-chal').forEach(btn => {
       btn.onclick = async () => {
@@ -1101,6 +1116,20 @@ async function loadChallenges() {
 
   renderChals(challenges.filter(c => c.is_practice === 1), practiceList, false);
   renderChals(challenges.filter(c => c.is_practice === 0), liveList, true);
+
+  const moveAllBtn = document.getElementById('moveAllToPracticeBtn');
+  if (moveAllBtn) {
+    moveAllBtn.onclick = async () => {
+      const liveCount = challenges.filter(c => c.is_practice === 0).length;
+      if (liveCount === 0) return alert('There are no Live CTF challenges to move.');
+      if (!confirm(`Are you sure you want to move all ${liveCount} Live CTF challenges to the Practice Arena? All players will be able to practice and learn from them.`)) return;
+      const res = await fetch('/api/admin/challenges/move-all-to-practice', { method: 'POST' });
+      if (res.ok) {
+        alert('All Live CTF challenges have been successfully moved to Practice Arena!');
+        loadChallenges();
+      }
+    };
+  }
 }
 
 const liveBtnTop = document.getElementById('newLiveChallengeBtnTop');
