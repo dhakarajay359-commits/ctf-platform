@@ -2,6 +2,7 @@ const nodemailer = require('nodemailer');
 const https = require('https');
 const http = require('http');
 const url = require('url');
+const querystring = require('querystring');
 const db = require('../db');
 
 /**
@@ -101,6 +102,59 @@ async function sendWhatsApp({ phone, message, eventTitle }) {
         }).on('error', (err) => {
           resolve({ success: false, error: err.message });
         });
+        return;
+      }
+
+      // Support UltraMsg API (api.ultramsg.com)
+      if (webhookUrl.includes('ultramsg.com')) {
+        const token = config.whatsapp_api_token || '';
+        const postData = querystring.stringify({
+          token: token,
+          to: '+' + cleanPhone,
+          body: message
+        });
+
+        const parsed = url.parse(webhookUrl);
+        const options = {
+          hostname: parsed.hostname,
+          port: 443,
+          path: parsed.path,
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+            'Content-Length': Buffer.byteLength(postData)
+          }
+        };
+
+        const req = https.request(options, (res) => {
+          let body = '';
+          res.on('data', chunk => { body += chunk; });
+          res.on('end', () => {
+            try {
+              const parsedRes = JSON.parse(body);
+              if (parsedRes.sent === 'true' || parsedRes.sent === true || res.statusCode < 300) {
+                resolve({ success: true, response: body });
+              } else {
+                resolve({ success: false, error: parsedRes.message || body });
+              }
+            } catch(e) {
+              if (res.statusCode < 300) resolve({ success: true, response: body });
+              else resolve({ success: false, error: body });
+            }
+          });
+        });
+
+        req.on('error', (err) => {
+          resolve({ success: false, error: err.message });
+        });
+
+        req.setTimeout(15000, () => {
+          req.destroy();
+          resolve({ success: false, error: 'UltraMsg gateway timeout' });
+        });
+
+        req.write(postData);
+        req.end();
         return;
       }
 

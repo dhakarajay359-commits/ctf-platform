@@ -342,16 +342,17 @@
               
               <label>API Provider / Preset</label>
               <select id="waProviderPreset" style="margin-bottom:12px;">
+                <option value="ultramsg">🚀 UltraMsg Gateway (api.ultramsg.com)</option>
                 <option value="callmebot">🤖 CallMeBot (Free WhatsApp API - callmebot.com)</option>
-                <option value="webhook">⚡ Custom HTTP Webhook / UltraMsg / Twilio / Green API</option>
+                <option value="webhook">⚡ Custom HTTP Webhook / Twilio / Green API</option>
               </select>
 
               <div id="waWebhookFields">
                 <label>Webhook / API Endpoint URL</label>
-                <input id="waWebhookUrl" placeholder="https://api.callmebot.com/whatsapp.php or https://your-wa-gateway.com/send">
+                <input id="waWebhookUrl" placeholder="https://api.ultramsg.com/{INSTANCE_ID}/messages/chat">
                 
-                <label>API Key / Bearer Token</label>
-                <input id="waApiToken" type="password" placeholder="e.g. 123456 (CallMeBot API Key) or Bearer Token">
+                <label>API Token / Key</label>
+                <input id="waApiToken" type="password" placeholder="Your UltraMsg Token">
 
                 <div style="display:flex; gap:10px; margin-top:15px;">
                   <button id="saveWaBtn" class="btn-primary">Save Gateway Settings</button>
@@ -588,8 +589,12 @@ async function loadNotifications() {
     document.getElementById('waWebhookUrl').value = settings.whatsapp_webhook_url || '';
     document.getElementById('waApiToken').value = settings.whatsapp_api_token || '';
 
-    if (settings.whatsapp_webhook_url && settings.whatsapp_webhook_url.includes('callmebot.com')) {
-      document.getElementById('waProviderPreset').value = 'callmebot';
+    if (settings.whatsapp_webhook_url) {
+      if (settings.whatsapp_webhook_url.includes('callmebot.com')) {
+        document.getElementById('waProviderPreset').value = 'callmebot';
+      } else if (settings.whatsapp_webhook_url.includes('ultramsg.com')) {
+        document.getElementById('waProviderPreset').value = 'ultramsg';
+      }
     }
   } catch (e) {
     console.error('Failed to load notification settings:', e);
@@ -603,7 +608,10 @@ if (waPresetSelect) {
     const val = waPresetSelect.value;
     const urlInput = document.getElementById('waWebhookUrl');
     const tokenInput = document.getElementById('waApiToken');
-    if (val === 'callmebot') {
+    if (val === 'ultramsg') {
+      urlInput.placeholder = 'https://api.ultramsg.com/{INSTANCE_ID}/messages/chat';
+      tokenInput.placeholder = 'Your UltraMsg Token';
+    } else if (val === 'callmebot') {
       urlInput.value = 'https://api.callmebot.com/whatsapp.php';
       tokenInput.placeholder = 'Your CallMeBot API Key';
     } else if (val === 'webhook') {
