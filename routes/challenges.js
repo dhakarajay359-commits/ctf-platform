@@ -182,15 +182,16 @@ module.exports = function (io) {
         
     // Filter challenges based on rules:
     // - Practice challenges (is_practice = 1) always visible
-    // - Live challenges (is_practice = 0): only accessible to registered live participants during event window
+    // - Live challenges (is_practice = 0): visible to registered live participants
     const visibleChallenges = challenges.filter(c => {
       if (c.is_practice === 1) return true;
       if (c.is_practice === 0) {
-        return isLiveTeam && liveStarted && !liveEnded;
+        return isLiveTeam;
       }
       return false;
     });
 
+    const liveState = isManualLive ? 'active' : (!liveStarted ? 'upcoming' : (liveEnded ? 'ended' : 'active'));
     const solvedIds = teamId ? new Set((await db.prepare('SELECT challenge_id FROM solves WHERE team_id = ?').all(teamId)).map(r => r.challenge_id)) : new Set();
     const claims = teamId ? (await db.prepare('SELECT challenge_id, operative_alias FROM challenge_claims WHERE team_id = ?').all(teamId)).reduce((acc, row) => {
       acc[row.challenge_id] = row.operative_alias;
@@ -209,9 +210,13 @@ module.exports = function (io) {
         ...c,
         solved: solvedIds.has(c.id),
         claimed_by: claims[c.id] || null,
-        hints
+        hints,
+        live_state: c.is_practice === 0 ? liveState : 'practice',
+        live_start: startTime,
+        live_end: endTime
       };
     });
+
     res.json(result);
   });
 
