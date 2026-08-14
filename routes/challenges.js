@@ -212,8 +212,8 @@ module.exports = function (io) {
         claimed_by: claims[c.id] || null,
         hints,
         live_state: c.is_practice === 0 ? liveState : 'practice',
-        live_start: startTime,
-        live_end: endTime
+        live_start: liveStartRow ? liveStartRow.value : null,
+        live_end: liveEndRow ? liveEndRow.value : null
       };
     });
 
