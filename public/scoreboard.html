@@ -20,18 +20,25 @@
 </div>
 
 <main>
-  <span class="eyebrow">Live standings</span>
-  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px;">
-    <div style="display:flex; align-items:center; gap: 16px;">
+  <span class="eyebrow" id="standingsEyebrow">Live Standings</span>
+  <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:20px; flex-wrap:wrap; gap:12px;">
+    <div style="display:flex; align-items:center; gap: 16px; flex-wrap:wrap;">
       <h1 style="margin:0;">Scoreboard</h1>
-      <div style="display:flex; gap: 10px; margin-left: 20px;">
-        <button id="filterAll" class="btn-ghost active">All</button>
-        <button id="filterLoneWolves" class="btn-ghost">Lone Wolves</button>
-        <button id="filterSyndicates" class="btn-ghost">Syndicates</button>
+      
+      <!-- Mode Switcher -->
+      <div style="display:flex; gap:4px; background:rgba(0,0,0,0.4); padding:3px; border-radius:6px; border:1px solid var(--border-color);">
+        <button id="modeLiveBtn" class="btn-ghost btn-sm active" style="font-weight:bold;">🔴 Live CTF</button>
+        <button id="modePracticeBtn" class="btn-ghost btn-sm">🛡️ Practice Arena</button>
+      </div>
+
+      <div style="display:flex; gap: 8px;">
+        <button id="filterAll" class="btn-ghost btn-sm active">All</button>
+        <button id="filterLoneWolves" class="btn-ghost btn-sm">Lone Wolves</button>
+        <button id="filterSyndicates" class="btn-ghost btn-sm">Syndicates</button>
       </div>
       <button id="downloadReportBtn" class="btn-ghost btn-sm hidden">↓ Skills Report</button>
     </div>
-    <span class="live-tag"><span class="dot"></span> Live</span>
+    <span class="live-tag" id="liveTagIndicator"><span class="dot"></span> Live CTF</span>
   </div>
 
   <div class="panel" style="margin-bottom: 24px; display: none;" id="graphPanel">
@@ -53,7 +60,7 @@
     </table>
   </div>
 
-  <p id="emptyMsg" style="margin-top:16px;" class="hidden">No teams have scored yet — be the first.</p>
+  <p id="emptyMsg" style="margin-top:16px;" class="hidden">No teams have scored yet in this category.</p>
 
   <div id="activityLog" style="margin-top: 32px;">
     <span class="eyebrow">Activity feed</span>
@@ -71,7 +78,22 @@
 <script>
 let myTeamId = null;
 let currentFilter = 'all';
+let currentMode = 'live';
 let globalScoreboardRows = [];
+
+document.getElementById('modeLiveBtn').onclick = () => setScoreboardMode('live');
+document.getElementById('modePracticeBtn').onclick = () => setScoreboardMode('practice');
+
+function setScoreboardMode(mode) {
+  currentMode = mode;
+  document.getElementById('modeLiveBtn').classList.toggle('active', mode === 'live');
+  document.getElementById('modePracticeBtn').classList.toggle('active', mode === 'practice');
+  document.getElementById('standingsEyebrow').textContent = mode === 'live' ? 'Live CTF Standings' : 'Practice Arena Standings';
+  document.getElementById('liveTagIndicator').innerHTML = mode === 'live' 
+    ? '<span class="dot"></span> Live CTF' 
+    : '<span style="display:inline-block; width:8px; height:8px; background:var(--primary); border-radius:50%; margin-right:4px;"></span> Practice';
+  loadScoreboard();
+}
 
 document.getElementById('filterAll').onclick = (e) => setFilter('all', e.target);
 document.getElementById('filterLoneWolves').onclick = (e) => setFilter('Lone Wolf', e.target);
@@ -83,6 +105,7 @@ function setFilter(filter, btn) {
   btn.classList.add('active');
   if (globalScoreboardRows.length > 0) renderScoreboard(globalScoreboardRows);
 }
+
 // Check if user is logged in
 fetch('/api/auth/me').then(r => r.json()).then(d => {
   if (d.team) {
@@ -90,6 +113,7 @@ fetch('/api/auth/me').then(r => r.json()).then(d => {
     document.getElementById('downloadReportBtn').classList.remove('hidden');
   }
 });
+
 function rankClass(rank) {
   if (rank === 1) return 'top1';
   if (rank === 2) return 'top2';
@@ -99,7 +123,10 @@ function rankClass(rank) {
 
 function timeAgo(iso) {
   if (!iso) return '—';
-  const diff = (Date.now() - new Date(iso + 'Z').getTime()) / 1000;
+  const d = new Date(iso);
+  if (isNaN(d.getTime())) return '—';
+  const diff = (Date.now() - d.getTime()) / 1000;
+  if (diff < 5) return 'Just now';
   if (diff < 60) return `${Math.floor(diff)}s ago`;
   if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
   if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
@@ -157,25 +184,38 @@ function pushActivity(entry) {
 
 const socket = io();
 socket.on('scoreboard:data', (rows) => {
-  renderScoreboard(rows);
-  renderGraph();
+  if (currentMode === 'live') {
+    renderScoreboard(rows);
+    renderGraph();
+  }
+});
+socket.on('scoreboard:data:practice', (rows) => {
+  if (currentMode === 'practice') {
+    renderScoreboard(rows);
+    renderGraph();
+  }
 });
 socket.on('activity', (entry) => {
   pushActivity(entry);
   socket.emit('scoreboard:request');
 });
 
-// initial load
-fetch('/api/scoreboard').then(r => r.json()).then(rows => {
+// Load scoreboard & graph for current mode
+async function loadScoreboard() {
+  const res = await fetch(`/api/scoreboard?mode=${currentMode}`);
+  const rows = await res.json();
   renderScoreboard(rows);
   renderGraph();
-});
+}
+
+// Initial load
+loadScoreboard();
 
 // Top 10 Graph Logic
 let top10Chart = null;
 
 async function renderGraph() {
-  const res = await fetch('/api/scoreboard/graph');
+  const res = await fetch(`/api/scoreboard/graph?mode=${currentMode}`);
   if (!res.ok) return;
   const datasetsObj = await res.json();
   

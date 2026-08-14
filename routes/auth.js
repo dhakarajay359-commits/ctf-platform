@@ -85,7 +85,7 @@ router.get('/google', (req, res, next) => {
     `);
   }
   passport.authenticate('google', {
-    scope: ['profile']
+    scope: ['profile', 'email']
   })(req, res, next);
 });
 router.get('/google/callback', (req, res, next) => {
@@ -96,6 +96,7 @@ router.get('/google/callback', (req, res, next) => {
 }), function (req, res) {
   req.session.teamId = req.user.id;
   req.session.teamName = req.user.name;
+  req.session.isLive = req.user.is_live || 0;
   res.redirect('/challenges.html');
 });
 router.post('/live-register', async (req, res) => {
