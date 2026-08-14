@@ -39,6 +39,47 @@ module.exports = function (io) {
     });
   });
 
+  async function checkLiveTeamStatus(teamId, userEmail = null) {
+    if (!teamId && !userEmail) return false;
+
+    if (teamId) {
+      const team = await db.prepare('SELECT id, name, is_live FROM teams WHERE id = ?').get(teamId);
+      if (team) {
+        if (team.is_live === 1) return true;
+
+        // Check if team name or user matches live registration submissions
+        const allSubs = await db.prepare('SELECT data FROM live_registration_submissions').all();
+        for (const sub of allSubs) {
+          try {
+            const parsed = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data;
+            const regName = parsed['Full Name'] || parsed['teamName'] || parsed['Name'] || '';
+            const regEmail = parsed['Email ID'] || parsed['Email'] || parsed['email'] || '';
+            if ((regName && regName.toLowerCase() === team.name.toLowerCase()) || 
+                (userEmail && regEmail && regEmail.toLowerCase() === userEmail.toLowerCase())) {
+              await db.prepare('UPDATE teams SET is_live = 1 WHERE id = ?').run(teamId);
+              return true;
+            }
+          } catch (e) {}
+        }
+      }
+    }
+
+    if (userEmail) {
+      const allSubs = await db.prepare('SELECT data FROM live_registration_submissions').all();
+      for (const sub of allSubs) {
+        try {
+          const parsed = typeof sub.data === 'string' ? JSON.parse(sub.data) : sub.data;
+          const regEmail = parsed['Email ID'] || parsed['Email'] || parsed['email'] || '';
+          if (regEmail && regEmail.toLowerCase() === userEmail.toLowerCase()) {
+            return true;
+          }
+        } catch (e) {}
+      }
+    }
+
+    return false;
+  }
+
   const checkCTFStarted = async (req, res, next) => {
     const isGlobal = !req.params.id && !req.params.hintId;
     if (isGlobal) return next(); // Let GET / and GET /graph filter themselves
@@ -54,31 +95,43 @@ module.exports = function (io) {
 
     if (isPractice) return next(); // Practice challenges are always accessible
 
-    // Now check Live CTF timing
+    // Check Live CTF timing
     const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
     const liveEndRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
     const statusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
     const isManualLive = statusRow && statusRow.value === 'live';
 
+    const now = Date.now();
+
     if (!isManualLive && liveStartRow && liveStartRow.value) {
       const liveStartTime = new Date(liveStartRow.value).getTime();
-      if (Date.now() < liveStartTime) {
+      if (now < liveStartTime) {
         return res.status(403).json({
-          error: 'Live CTF has not started yet.',
+          error: `Live CTF starts on ${new Date(liveStartTime).toLocaleString()}. Challenges are locked until event start time.`,
           upcoming: true,
           startTime: liveStartTime
         });
       }
     }
+
+    if (!isManualLive && liveEndRow && liveEndRow.value) {
+      const liveEndTime = new Date(liveEndRow.value).getTime();
+      if (now > liveEndTime) {
+        return res.status(403).json({
+          error: 'Live CTF event has ended.',
+          ended: true
+        });
+      }
+    }
     
-    // Check if team is a Live team
-    if (req.session.teamId) {
-       const team = await db.prepare('SELECT is_live FROM teams WHERE id = ?').get(req.session.teamId);
-       if (!team || team.is_live !== 1) {
-           return res.status(403).json({
-               error: 'You must register for the Live CTF to access this challenge.'
-           });
-       }
+    // Check if team/user is registered for Live CTF
+    const userEmail = req.user?.email || null;
+    const isLive = await checkLiveTeamStatus(req.session.teamId, userEmail);
+    if (!isLive) {
+      return res.status(403).json({
+        error: 'You must be registered for the Live CTF event to access this live challenge.',
+        registrationRequired: true
+      });
     }
 
     next();
@@ -87,26 +140,35 @@ module.exports = function (io) {
   // List all visible challenges, with per-team solve/hint state
   router.get('/', checkCTFStarted, async (req, res) => {
     const teamId = req.session.teamId || null;
-    let isLiveTeam = false;
-    if (teamId) {
-      const team = await db.prepare('SELECT is_live FROM teams WHERE id = ?').get(teamId);
-      if (team && team.is_live === 1) isLiveTeam = true;
-    }
+    const userEmail = req.user?.email || null;
+    const isLiveTeam = await checkLiveTeamStatus(teamId, userEmail);
     
     // Check if Live CTF has started (either time has arrived or admin forced live)
     let liveStarted = false;
+    let liveEnded = false;
     const liveStartRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_start'").get();
+    const liveEndRow = await db.prepare("SELECT value FROM settings WHERE key = 'live_ctf_event_end'").get();
     const statusRow = await db.prepare("SELECT value FROM settings WHERE key = 'ctf_status'").get();
     
-    if (statusRow && statusRow.value === 'live') {
+    const now = Date.now();
+    const isManualLive = statusRow && statusRow.value === 'live';
+
+    if (isManualLive) {
       liveStarted = true;
     } else if (liveStartRow && liveStartRow.value) {
       const liveStartTime = new Date(liveStartRow.value).getTime();
-      if (Date.now() >= liveStartTime) {
+      if (now >= liveStartTime) {
         liveStarted = true;
       }
     } else {
       liveStarted = true;
+    }
+
+    if (!isManualLive && liveEndRow && liveEndRow.value) {
+      const liveEndTime = new Date(liveEndRow.value).getTime();
+      if (now > liveEndTime) {
+        liveEnded = true;
+      }
     }
 
     const challenges = await db.prepare(`
@@ -118,15 +180,16 @@ module.exports = function (io) {
           ORDER BY cat.name, c.points ASC
         `).all();
         
-        // Filter challenges based on rules
-        const visibleChallenges = challenges.filter(c => {
-          if (c.is_practice === 1) return true; // Practice always visible
-          if (c.is_practice === 0) {
-            // Live challenges only visible to Live Teams after CTF has started
-            return isLiveTeam && liveStarted;
-          }
-          return false;
-        });
+    // Filter challenges based on rules:
+    // - Practice challenges (is_practice = 1) always visible
+    // - Live challenges (is_practice = 0): only accessible to registered live participants during event window
+    const visibleChallenges = challenges.filter(c => {
+      if (c.is_practice === 1) return true;
+      if (c.is_practice === 0) {
+        return isLiveTeam && liveStarted && !liveEnded;
+      }
+      return false;
+    });
 
     const solvedIds = teamId ? new Set((await db.prepare('SELECT challenge_id FROM solves WHERE team_id = ?').all(teamId)).map(r => r.challenge_id)) : new Set();
     const claims = teamId ? (await db.prepare('SELECT challenge_id, operative_alias FROM challenge_claims WHERE team_id = ?').all(teamId)).reduce((acc, row) => {
