@@ -449,15 +449,15 @@ module.exports = function (io) {
     let startTime = null;
     if (startTimestamp) {
       startTime = Number(startTimestamp);
-      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', ?)").run(startTime);
+      await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_start_time', ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run(startTime);
     } else {
-      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
+      await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_start_time', NULL) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run();
     }
     if (durationMinutes) {
       endTime = (startTime || Date.now()) + Number(durationMinutes) * 60000;
-      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', ?)").run(endTime);
+      await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_end_time', ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run(endTime);
     } else {
-      await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
+      await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_end_time', NULL) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run();
     }
     io.emit('timer:update', {
       startTime,
@@ -490,8 +490,8 @@ module.exports = function (io) {
 
     // Clear anomaly and timer states in memory and db
     state.anomaly = null;
-    await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_start_time', NULL)").run();
-    await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_end_time', NULL)").run();
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_start_time', NULL) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run();
+    await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_end_time', NULL) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run();
 
     // Broadcast state changes
     io.emit('anomaly:end');

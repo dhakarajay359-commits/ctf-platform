@@ -277,7 +277,7 @@ async function broadcastStartAlert(customMsg = null, originUrl = '') {
   }
 
   // Mark notified flag in settings
-  await db.prepare("REPLACE INTO settings (key, value) VALUES ('live_start_notified_at', ?)").run(new Date().toISOString());
+  await db.prepare("INSERT INTO settings (key, value) VALUES ('live_start_notified_at', ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run(new Date().toISOString());
 
   return results;
 }

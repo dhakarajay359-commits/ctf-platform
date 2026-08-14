@@ -403,7 +403,7 @@ module.exports = function (io) {
     if (!correct) return res.status(403).json({
       error: 'Access Denied.'
     });
-    await db.prepare('INSERT OR REPLACE INTO koth_control (challenge_id, team_id, claimed_at) VALUES (?, ?, datetime("now"))').run(challengeId, teamId);
+    await db.prepare('INSERT INTO koth_control (challenge_id, team_id, claimed_at) VALUES (?, ?, CURRENT_TIMESTAMP) ON CONFLICT(challenge_id) DO UPDATE SET team_id = EXCLUDED.team_id, claimed_at = CURRENT_TIMESTAMP').run(challengeId, teamId);
     io.emit('activity', {
       team: req.session.teamName,
       challenge: challenge.title + ' (Area Secured)',

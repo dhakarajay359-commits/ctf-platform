@@ -11,8 +11,17 @@ const pool = new Pool({
 const db = {
   pool,
   prepare: (sql) => {
+    let cleanSql = sql;
+    // Translate SQLite REPLACE INTO settings to Postgres ON CONFLICT
+    if (/^REPLACE INTO settings/i.test(cleanSql.trim())) {
+      cleanSql = cleanSql.replace(/^REPLACE INTO settings\s*\(([^)]+)\)\s*VALUES\s*\(([^)]+)\)/i, (match, cols, vals) => {
+        return `INSERT INTO settings (${cols}) VALUES (${vals}) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value`;
+      });
+    } else if (/^INSERT OR REPLACE INTO/i.test(cleanSql.trim())) {
+      cleanSql = cleanSql.replace(/^INSERT OR REPLACE INTO/i, 'INSERT INTO');
+    }
     let index = 1;
-    const pgSql = sql.replace(/\?/g, () => `$${index++}`);
+    const pgSql = cleanSql.replace(/\?/g, () => `$${index++}`);
     return {
       get: async (...params) => {
         try {

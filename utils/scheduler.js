@@ -40,7 +40,7 @@ function initScheduler(io) {
 
         // Update in database if in auto mode
         if (manualStatus === 'auto') {
-          await db.prepare("REPLACE INTO settings (key, value) VALUES ('ctf_status_computed', ?)").run(computedStatus);
+          await db.prepare("INSERT INTO settings (key, value) VALUES ('ctf_status_computed', ?) ON CONFLICT(key) DO UPDATE SET value = EXCLUDED.value").run(computedStatus);
         }
 
         // Notify connected clients
