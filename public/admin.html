@@ -736,12 +736,21 @@ document.getElementById('sendBroadcastBtn').onclick = async () => {
 
     if (res.ok && data.ok) {
       const r = data.result;
+      let notes = '';
+      if (r.emailFailed > 0) {
+        notes += '<div style="margin-top:6px; color:#ffb74d; font-size:12px;">⚠️ Email notice: SMTP Host & User are not saved below in Email Configuration. Save them to deliver real emails.</div>';
+      }
+      if (r.whatsappFailed > 0) {
+        notes += '<div style="margin-top:4px; color:#ffb74d; font-size:12px;">⚠️ WhatsApp notice: UltraMsg / Gateway Token is not saved below in WhatsApp Configuration. Save it to deliver real WhatsApp messages.</div>';
+      }
+
       resultDiv.innerHTML = `
-        <div class="alert alert-success" style="line-height:1.6;">
-          <strong>✓ Broadcast Complete!</strong><br>
+        <div class="alert ${r.emailSent > 0 || r.whatsappSent > 0 ? 'alert-success' : 'alert-error'}" style="line-height:1.6;">
+          <strong>${r.emailSent > 0 || r.whatsappSent > 0 ? '✓ Broadcast Processed' : '⚠️ Broadcast Processed (Gateways Not Connected)'}</strong><br>
           • Total Participants Processed: <strong>${r.total}</strong><br>
-          • Emails Sent: <strong>${r.emailSent}</strong> (${r.emailFailed} failed/skipped)<br>
-          • WhatsApp Messages Sent: <strong>${r.whatsappSent}</strong> (${r.whatsappFailed} failed/skipped)
+          • Emails Sent: <strong>${r.emailSent}</strong> (${r.emailFailed} skipped/failed)<br>
+          • WhatsApp Messages Sent: <strong>${r.whatsappSent}</strong> (${r.whatsappFailed} skipped/failed)
+          ${notes}
         </div>
       `;
     } else {
