@@ -337,12 +337,11 @@
 
             <!-- WhatsApp Gateway Settings -->
             <div class="panel">
-              <h3 style="margin-top:0; color:#25D366;">💬 WhatsApp / SMS Gateway</h3>
-              <p style="color:var(--text-muted); font-size:13px;">Send automated WhatsApp alerts via Gateway or chat directly via WhatsApp Web/App.</p>
+              <h3 style="margin-top:0; color:#25D366;">💬 Automated WhatsApp Gateway</h3>
+              <p style="color:var(--text-muted); font-size:13px;">Configure your WhatsApp API Gateway to deliver automated background alerts to participant mobile numbers.</p>
               
-              <label>WhatsApp Mode / Provider</label>
+              <label>API Provider / Preset</label>
               <select id="waProviderPreset" style="margin-bottom:12px;">
-                <option value="direct">🌐 Direct WhatsApp Link (Free, Instant, No External Server)</option>
                 <option value="callmebot">🤖 CallMeBot (Free WhatsApp API - callmebot.com)</option>
                 <option value="webhook">⚡ Custom HTTP Webhook / UltraMsg / Twilio / Green API</option>
               </select>
@@ -351,7 +350,7 @@
                 <label>Webhook / API Endpoint URL</label>
                 <input id="waWebhookUrl" placeholder="https://api.callmebot.com/whatsapp.php or https://your-wa-gateway.com/send">
                 
-                <label>API Key / Bearer Token (For CallMeBot apikey or Gateway token)</label>
+                <label>API Key / Bearer Token</label>
                 <input id="waApiToken" type="password" placeholder="e.g. 123456 (CallMeBot API Key) or Bearer Token">
 
                 <div style="display:flex; gap:10px; margin-top:15px;">
@@ -361,23 +360,20 @@
               </div>
 
               <hr style="border:none; border-top:1px solid var(--border-color); margin:15px 0;">
-              <h4 style="margin:0 0 10px 0;">Test WhatsApp Delivery</h4>
-              <div style="display:flex; flex-direction:column; gap:10px;">
-                <input id="testWaTarget" placeholder="e.g. 7354237293 or +917354237293">
-                <div style="display:flex; gap:10px; flex-wrap:wrap;">
-                  <button id="sendTestWaBtn" class="btn-ghost btn-sm">🚀 Send via Gateway</button>
-                  <button id="openDirectWaBtn" class="btn-primary btn-sm" style="background:#25D366; color:#000; font-weight:bold;">💬 Open Direct in WhatsApp</button>
-                </div>
+              <h4 style="margin:0 0 10px 0;">Test Gateway Delivery</h4>
+              <div class="field-row">
+                <input id="testWaTarget" placeholder="Mobile Number with country code">
+                <button id="sendTestWaBtn" class="btn-ghost btn-sm" style="flex:0 0 auto;">Send Test Alert</button>
               </div>
               <div id="testWaMsg" style="margin-top:10px;"></div>
             </div>
           </div>
 
-          <!-- Registered Contacts Table with 1-Click WhatsApp -->
+          <!-- Registered Contacts Table -->
           <div class="panel" style="margin-top:24px;">
             <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
               <h3 style="margin:0;">👥 Registered Participants Contact List</h3>
-              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Direct 1-Click Alert Access</span>
+              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Automated Alert Recipient Registry</span>
             </div>
             <div style="overflow-x:auto;">
               <table style="width:100%; text-align:left; border-collapse:collapse; font-size:13px;">
@@ -385,8 +381,8 @@
                   <tr style="border-bottom:1px solid var(--border-color); color:var(--text-muted);">
                     <th style="padding:8px;">Name</th>
                     <th style="padding:8px;">Email Address</th>
-                    <th style="padding:8px;">Phone Number</th>
-                    <th style="padding:8px;">Actions</th>
+                    <th style="padding:8px;">Mobile Number</th>
+                    <th style="padding:8px;">College / Info</th>
                   </tr>
                 </thead>
                 <tbody id="notifParticipantsTable"></tbody>
@@ -570,25 +566,11 @@ async function loadNotifications() {
       participants.forEach(p => {
         const tr = document.createElement('tr');
         tr.style.borderBottom = '1px solid var(--border-color)';
-        
-        let waBtn = '';
-        if (p.phone) {
-          const clean = formatPhoneNumberForWa(p.phone);
-          const msg = encodeURIComponent(`Hello ${p.name}! The Live CTF event is starting. Access the challenge platform here: ${window.location.origin}/challenges.html`);
-          const waUrl = `https://wa.me/${clean}?text=${msg}`;
-          waBtn = `<a href="${waUrl}" target="_blank" class="btn-primary btn-sm" style="text-decoration:none; padding:3px 8px; font-size:11px; background:#25D366; color:#000; font-weight:bold; margin-right:6px;">💬 WhatsApp</a>`;
-        }
-        
-        let emailBtn = '';
-        if (p.email) {
-          emailBtn = `<a href="mailto:${p.email}?subject=Live CTF Starting Alert" class="btn-ghost btn-sm" style="text-decoration:none; padding:3px 8px; font-size:11px;">📧 Email</a>`;
-        }
-
         tr.innerHTML = `
           <td style="padding:10px; font-weight:bold;">${escapeHtml(p.name)}</td>
           <td style="padding:10px; color:var(--primary); font-family:var(--mono);">${escapeHtml(p.email || '—')}</td>
           <td style="padding:10px; color:#25D366; font-family:var(--mono);">${escapeHtml(p.phone || '—')}</td>
-          <td style="padding:10px;">${waBtn}${emailBtn}</td>
+          <td style="padding:10px; color:var(--text-muted); font-size:12px;">Registered & Verified</td>
         `;
         tbody.appendChild(tr);
       });
@@ -624,11 +606,9 @@ if (waPresetSelect) {
     if (val === 'callmebot') {
       urlInput.value = 'https://api.callmebot.com/whatsapp.php';
       tokenInput.placeholder = 'Your CallMeBot API Key';
-    } else if (val === 'direct') {
-      urlInput.value = '';
-      tokenInput.value = '';
     } else if (val === 'webhook') {
-      urlInput.placeholder = 'https://your-webhook-endpoint.com/api/send';
+      urlInput.value = '';
+      tokenInput.placeholder = 'Your Gateway API Token / Secret';
     }
   };
 }
@@ -701,9 +681,9 @@ document.getElementById('saveWaBtn').onclick = async () => {
 document.getElementById('sendTestWaBtn').onclick = async () => {
   const target = document.getElementById('testWaTarget').value.trim();
   const msgEl = document.getElementById('testWaMsg');
-  if (!target) return alert('Enter a destination phone number (e.g. 7354237293).');
+  if (!target) return alert('Enter a destination mobile number.');
   
-  msgEl.innerHTML = '<span style="color:var(--primary); font-size:12px;">Connecting to WhatsApp Gateway...</span>';
+  msgEl.innerHTML = '<span style="color:var(--primary); font-size:12px;">Testing WhatsApp Gateway connection...</span>';
   const res = await fetch('/api/admin/notifications/test', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -711,27 +691,11 @@ document.getElementById('sendTestWaBtn').onclick = async () => {
   });
   const data = await res.json();
   if (data.success) {
-    msgEl.innerHTML = '<div class="alert alert-success" style="font-size:12px; padding:6px;">✓ Test WhatsApp message dispatched via Gateway!</div>';
+    msgEl.innerHTML = '<div class="alert alert-success" style="font-size:12px; padding:6px;">✓ Test alert dispatched through Gateway!</div>';
   } else {
-    let directHtml = '';
-    if (data.directLink) {
-      directHtml = `<br><a href="${data.directLink}" target="_blank" class="btn-primary" style="display:inline-block; text-decoration:none; margin-top:8px; font-size:12px; padding:6px 12px; background:#25D366; color:#000; font-weight:bold;">💬 Click here to Open & Send WhatsApp Directly to +${data.formattedPhone || target}</a>`;
-    }
-    msgEl.innerHTML = `<div class="alert alert-error" style="font-size:12px; padding:8px; line-height:1.5;">${escapeHtml(data.error || 'Failed to send via gateway.')}${directHtml}</div>`;
+    msgEl.innerHTML = `<div class="alert alert-error" style="font-size:12px; padding:8px;">✗ ${escapeHtml(data.error || 'Failed to send via gateway.')}</div>`;
   }
 };
-
-// Open Direct in WhatsApp
-const openDirectWaBtn = document.getElementById('openDirectWaBtn');
-if (openDirectWaBtn) {
-  openDirectWaBtn.onclick = () => {
-    const target = document.getElementById('testWaTarget').value.trim();
-    if (!target) return alert('Enter a destination phone number (e.g. 7354237293).');
-    const clean = formatPhoneNumberForWa(target);
-    const msg = encodeURIComponent(`🚨 [ALERT] The Live CTF is starting! Access the live platform here: ${window.location.origin}/challenges.html`);
-    window.open(`https://wa.me/${clean}?text=${msg}`, '_blank');
-  };
-}
 
 // Send Broadcast to all
 document.getElementById('sendBroadcastBtn').onclick = async () => {
