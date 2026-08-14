@@ -32,9 +32,10 @@
       <div style="flex:1; height:1px; background:var(--border-color);"></div>
     </div>
 
-    <div class="tabs">
-      <button id="tabLogin" class="active">Sign in</button>
-      <button id="tabRegister">Register team</button>
+    <div class="tabs" style="display:flex; gap:6px;">
+      <button id="tabLogin" class="active" style="flex:1;">Sign in</button>
+      <button id="tabRegister" style="flex:1;">Register</button>
+      <button id="tabJoin" style="flex:1;">Join Code</button>
     </div>
     
     <div id="upcomingCtfBanner" style="text-align:center; margin-bottom: 20px; background: rgba(0,0,0,0.3); border: 1px solid var(--border-color); border-radius: 4px; padding: 15px; display: none;">
@@ -65,19 +66,53 @@
       <input type="hidden" id="operativeType" value="Lone Wolf">
       
       <div id="membersCountContainer" class="hidden" style="margin-bottom:16px;">
-        <label for="membersCount">Syndicate Size</label>
+        <label for="membersCount">Total Team Size (including you)</label>
         <select id="membersCount">
-          <option value="2">2 Members</option>
-          <option value="3">3 Members</option>
+          <option value="2">2 Members (You + 1 teammate)</option>
+          <option value="3">3 Members (You + 2 teammates)</option>
+          <option value="4">4 Members (You + 3 teammates)</option>
         </select>
+        <div style="font-size: 11px; color: var(--text-muted); margin-top: 4px;">A shareable team code will be generated upon registration.</div>
       </div>
 
       <button type="submit" style="width:100%;">Register →</button>
     </form>
 
+    <form id="joinForm" class="hidden">
+      <label for="joinCode">Syndicate Team Code</label>
+      <input id="joinCode" required placeholder="e.g. SYND-A1B2C3" style="text-transform: uppercase; font-family: var(--mono); letter-spacing: 1px;">
+      
+      <label for="joinAlias">Your Operative Alias / Name</label>
+      <input id="joinAlias" required placeholder="e.g. GhostOperative_01" minlength="2">
+      
+      <div style="font-size: 11px; color: var(--text-muted); margin-bottom: 16px;">Enter the unique code given by your team leader to join their syndicate.</div>
+
+      <button type="submit" style="width:100%;">Join Syndicate →</button>
+    </form>
+
     <p style="margin-top: 20px; font-size: 12px;">
       <a href="/scoreboard.html">View scoreboard</a>
     </p>
+  </div>
+</div>
+
+<!-- Team Code Popup Modal -->
+<div id="teamCodeModal" class="modal-backdrop hidden" style="position:fixed; top:0; left:0; right:0; bottom:0; background:rgba(0,0,0,0.85); backdrop-filter:blur(8px); display:flex; align-items:center; justify-content:center; z-index:99999;">
+  <div class="panel" style="max-width:440px; width:90%; border:1px solid var(--primary); box-shadow: 0 0 30px rgba(0,255,204,0.25); text-align:center; padding:28px 24px; position:relative; background:var(--panel-bg, #0d1117);">
+    <div style="color:var(--primary); font-family:var(--mono); font-size:12px; font-weight:bold; letter-spacing:1px; margin-bottom:6px;">// SYNDICATE FORMED</div>
+    <h2 style="margin:0 0 10px 0; font-size:22px; color:#fff;">Team Code Ready</h2>
+    <p style="color:var(--text-muted); font-size:13px; margin:0 0 20px 0; line-height:1.5;">
+      Share this code with your teammate<span id="modalMaxTeammates"></span>. They can use it in the <strong>Join Code</strong> tab to enter your team.
+    </p>
+    
+    <div style="background:rgba(0,0,0,0.6); border:1px dashed var(--primary); border-radius:6px; padding:14px; margin-bottom:15px; display:flex; justify-content:space-between; align-items:center; gap:10px;">
+      <span id="modalTeamCodeDisplay" style="font-family:var(--mono); font-size:20px; font-weight:bold; letter-spacing:3px; color:var(--primary);">SYND-XXXXXX</span>
+      <button id="modalCopyCodeBtn" type="button" class="btn-ghost btn-sm" style="padding:6px 12px; font-size:12px; border:1px solid var(--primary); cursor:pointer;">📋 Copy</button>
+    </div>
+
+    <div id="modalCopyFeedback" style="font-size:12px; color:var(--success, #00ff66); font-family:var(--mono); margin-bottom:15px; min-height:16px;"></div>
+
+    <button id="modalProceedBtn" type="button" class="btn-primary" style="width:100%; padding:12px; font-size:14px; font-weight:bold; cursor:pointer;">Proceed to Challenges →</button>
   </div>
 </div>
 
@@ -91,24 +126,31 @@ function clearError() { alertBox.classList.add('hidden'); }
 
 const tabLogin = document.getElementById('tabLogin');
 const tabRegister = document.getElementById('tabRegister');
+const tabJoin = document.getElementById('tabJoin');
 const loginForm = document.getElementById('loginForm');
 const registerForm = document.getElementById('registerForm');
+const joinForm = document.getElementById('joinForm');
 
 tabLogin.onclick = () => {
-  tabLogin.classList.add('active'); tabRegister.classList.remove('active');
-  loginForm.classList.remove('hidden'); registerForm.classList.add('hidden');
+  tabLogin.classList.add('active'); tabRegister.classList.remove('active'); tabJoin.classList.remove('active');
+  loginForm.classList.remove('hidden'); registerForm.classList.add('hidden'); joinForm.classList.add('hidden');
   clearError();
 };
 tabRegister.onclick = () => {
-  tabRegister.classList.add('active'); tabLogin.classList.remove('active');
-  registerForm.classList.remove('hidden'); loginForm.classList.add('hidden');
+  tabRegister.classList.add('active'); tabLogin.classList.remove('active'); tabJoin.classList.remove('active');
+  registerForm.classList.remove('hidden'); loginForm.classList.add('hidden'); joinForm.classList.add('hidden');
+  clearError();
+};
+tabJoin.onclick = () => {
+  tabJoin.classList.add('active'); tabLogin.classList.remove('active'); tabRegister.classList.remove('active');
+  joinForm.classList.remove('hidden'); loginForm.classList.add('hidden'); registerForm.classList.add('hidden');
   clearError();
 };
 
 loginForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError();
-  const teamName = document.getElementById('loginName').value;
+  const teamName = document.getElementById('loginName').value.trim();
   const password = document.getElementById('loginPass').value;
   const res = await fetch('/api/auth/login', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -123,7 +165,7 @@ loginForm.addEventListener('submit', async (e) => {
 registerForm.addEventListener('submit', async (e) => {
   e.preventDefault();
   clearError();
-  const teamName = document.getElementById('regName').value;
+  const teamName = document.getElementById('regName').value.trim();
   const password = document.getElementById('regPass').value;
   const operativeType = document.getElementById('operativeType').value;
   const membersCount = document.getElementById('membersCount').value;
@@ -135,8 +177,48 @@ registerForm.addEventListener('submit', async (e) => {
   const data = await res.json();
   if (!res.ok) return showError(data.error || 'Registration failed.');
   sessionStorage.setItem('teamPass', password);
+  
+  if (operativeType === 'Syndicate' && data.teamCode) {
+    document.getElementById('modalTeamCodeDisplay').textContent = data.teamCode;
+    const extraTeammates = Math.max(1, (parseInt(data.membersCount) || 2) - 1);
+    document.getElementById('modalMaxTeammates').textContent = ` (${extraTeammates} more teammate${extraTeammates > 1 ? 's' : ''})`;
+    document.getElementById('teamCodeModal').classList.remove('hidden');
+  } else {
+    window.location.href = '/challenges.html';
+  }
+});
+
+joinForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  clearError();
+  const teamCode = document.getElementById('joinCode').value.trim().toUpperCase();
+  const operativeName = document.getElementById('joinAlias').value.trim();
+  
+  const res = await fetch('/api/auth/join-team', {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ teamCode, operativeName })
+  });
+  const data = await res.json();
+  if (!res.ok) return showError(data.error || 'Failed to join team.');
   window.location.href = '/challenges.html';
 });
+
+document.getElementById('modalCopyCodeBtn').onclick = () => {
+  const code = document.getElementById('modalTeamCodeDisplay').textContent;
+  navigator.clipboard.writeText(code).then(() => {
+    document.getElementById('modalCopyFeedback').textContent = '✔ Team Code copied to clipboard!';
+    setTimeout(() => {
+      const fb = document.getElementById('modalCopyFeedback');
+      if (fb) fb.textContent = '';
+    }, 3000);
+  }).catch(() => {
+    document.getElementById('modalCopyFeedback').textContent = 'Code: ' + code;
+  });
+};
+
+document.getElementById('modalProceedBtn').onclick = () => {
+  window.location.href = '/challenges.html';
+};
 
 const bootLine = document.getElementById('bootLine');
 const lines = ['> initializing session...', '> handshake ok', '> awaiting credentials_'];

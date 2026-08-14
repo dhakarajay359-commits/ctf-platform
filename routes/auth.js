@@ -7,6 +7,12 @@ async function getSetting(key) {
   const row = await db.prepare('SELECT value FROM settings WHERE key = ?').get(key);
   return row ? row.value : null;
 }
+const crypto = require('crypto');
+
+function generateTeamCode() {
+  return `SYND-${crypto.randomBytes(3).toString('hex').toUpperCase()}`;
+}
+
 router.post('/register', async (req, res) => {
   const {
     teamName,
@@ -33,14 +39,103 @@ router.post('/register', async (req, res) => {
     });
   }
   const opType = operativeType === 'Lone Wolf' ? 'Lone Wolf' : 'Syndicate';
-  const memCount = opType === 'Lone Wolf' ? 1 : parseInt(membersCount) || 2;
+  const memCount = opType === 'Lone Wolf' ? 1 : Math.max(2, parseInt(membersCount) || 2);
+  const teamCode = generateTeamCode();
+  const initialRoster = opType === 'Lone Wolf' ? [teamName.trim()] : [`${teamName.trim()} (Leader)`];
   const hash = bcrypt.hashSync(password, 10);
-  const info = await db.prepare('INSERT INTO teams (name, password_hash, operative_type, members_count) VALUES (?, ?, ?, ?)').run(teamName.trim(), hash, opType, memCount);
+  
+  const info = await db.prepare('INSERT INTO teams (name, password_hash, operative_type, members_count, roster, team_code) VALUES (?, ?, ?, ?, ?, ?)').run(
+    teamName.trim(),
+    hash,
+    opType,
+    memCount,
+    JSON.stringify(initialRoster),
+    teamCode
+  );
+  
   req.session.teamId = info.lastInsertRowid;
   req.session.teamName = teamName.trim();
+  req.session.operativeAlias = initialRoster[0];
+
   res.json({
     id: info.lastInsertRowid,
-    name: teamName.trim()
+    name: teamName.trim(),
+    operativeType: opType,
+    membersCount: memCount,
+    teamCode: teamCode
+  });
+});
+
+router.post('/join-team', async (req, res) => {
+  const {
+    teamCode,
+    operativeName
+  } = req.body;
+  
+  const cleanCode = (teamCode || '').trim().toUpperCase();
+  const cleanAlias = (operativeName || '').trim();
+
+  if (!cleanCode || !cleanAlias) {
+    return res.status(400).json({
+      error: 'Team code and your operative alias are required.'
+    });
+  }
+
+  if (cleanAlias.length < 2) {
+    return res.status(400).json({
+      error: 'Operative alias must be at least 2 characters.'
+    });
+  }
+
+  const team = await db.prepare('SELECT * FROM teams WHERE UPPER(team_code) = ?').get(cleanCode);
+  if (!team) {
+    return res.status(404).json({
+      error: 'Invalid team code. Please verify the code with your team leader.'
+    });
+  }
+
+  if (team.is_banned === 1) {
+    return res.status(403).json({
+      error: 'This team has been banned from the CTF.'
+    });
+  }
+
+  let roster = [];
+  try {
+    roster = team.roster ? JSON.parse(team.roster) : [];
+  } catch (e) {
+    roster = [];
+  }
+
+  if (roster.length === 0) {
+    roster = [`${team.name} (Leader)`];
+  }
+
+  const maxMembers = team.members_count || 2;
+  if (roster.length >= maxMembers) {
+    return res.status(400).json({
+      error: 'This team is already full! Maximum member limit reached.'
+    });
+  }
+
+  if (roster.some(r => r.toLowerCase() === cleanAlias.toLowerCase())) {
+    return res.status(409).json({
+      error: `An operative named "${cleanAlias}" is already in this team.`
+    });
+  }
+
+  roster.push(cleanAlias);
+  await db.prepare('UPDATE teams SET roster = ? WHERE id = ?').run(JSON.stringify(roster), team.id);
+
+  req.session.teamId = team.id;
+  req.session.teamName = team.name;
+  req.session.operativeAlias = cleanAlias;
+
+  res.json({
+    ok: true,
+    teamId: team.id,
+    teamName: team.name,
+    operativeAlias: cleanAlias
   });
 });
 router.post('/login', async (req, res) => {
@@ -131,7 +226,7 @@ router.get('/public-settings', async (req, res) => {
 });
 router.get('/me', async (req, res) => {
   if (req.session.teamId) {
-    const team = await db.prepare('SELECT name, operative_type, members_count, roster, full_name FROM teams WHERE id = ?').get(req.session.teamId);
+    const team = await db.prepare('SELECT name, operative_type, members_count, roster, full_name, team_code FROM teams WHERE id = ?').get(req.session.teamId);
     if (!team) return res.json({
       team: null,
       isAdmin: !!req.session.isAdmin
@@ -143,7 +238,8 @@ router.get('/me', async (req, res) => {
         operative_type: team.operative_type,
         members_count: team.members_count,
         roster: team.roster ? JSON.parse(team.roster) : [],
-        is_registered: !!(team.full_name && team.full_name.trim() !== '')
+        is_registered: !!(team.full_name && team.full_name.trim() !== ''),
+        team_code: team.team_code || null
       },
       isAdmin: !!req.session.isAdmin
     });

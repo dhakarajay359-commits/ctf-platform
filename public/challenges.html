@@ -388,7 +388,11 @@
     <div id="syndicateSection" class="hidden" style="margin-top: 30px; width: 100%; max-width: 400px; text-align: left; margin-left: auto; margin-right: auto;">
       <div style="font-family: var(--mono); color: var(--primary); font-size: 13px; margin-bottom: 10px; display: flex; justify-content: space-between; align-items: center;">
         <span>SYNDICATE ROSTER</span>
-        <button id="assembleBtn" class="btn-ghost btn-sm" style="font-size: 10px; padding: 4px 8px; border: 1px solid var(--primary);">Assemble (Share Credentials)</button>
+        <button id="assembleBtn" class="btn-ghost btn-sm" style="font-size: 10px; padding: 4px 8px; border: 1px solid var(--primary); cursor:pointer;">🔑 Share Team Code</button>
+      </div>
+      <div id="teamCodeBox" class="hidden" style="margin-bottom: 12px; padding: 10px 14px; background: rgba(0,210,255,0.08); border: 1px solid var(--border-color); border-radius: 4px; font-family: var(--mono); font-size: 12px; display: flex; justify-content: space-between; align-items: center;">
+        <div>Team Code: <strong id="syndicateCodeText" style="color:var(--primary); letter-spacing:1px;"></strong></div>
+        <button id="copySyndicateCodeBtn" class="btn-ghost btn-sm" style="font-size:10px; padding:2px 8px; border:1px solid var(--primary); cursor:pointer;">Copy</button>
       </div>
       <div id="assembleMsg" class="hidden" style="margin-bottom: 10px; padding: 10px; background: rgba(0,255,204,0.1); border: 1px solid var(--primary); font-family: var(--mono); font-size: 11px; text-align: center; color: var(--primary);"></div>
       <div id="rosterList" style="display: flex; flex-direction: column; gap: 8px;">
@@ -1218,22 +1222,41 @@ fetch('/api/auth/me').then(r => r.json()).then(d => {
     const synSec = document.getElementById('syndicateSection');
     if (synSec) {
       synSec.classList.remove('hidden');
+      if (d.team.team_code) {
+        const tcb = document.getElementById('teamCodeBox');
+        if (tcb) tcb.classList.remove('hidden');
+        const sct = document.getElementById('syndicateCodeText');
+        if (sct) sct.textContent = d.team.team_code;
+      }
       const rl = document.getElementById('rosterList');
       rl.innerHTML = '';
       for (let i = 0; i < d.team.members_count; i++) {
-        const val = d.team.roster[i] || '';
+        const val = (d.team.roster && d.team.roster[i]) || '';
         rl.innerHTML += `<input type="text" class="roster-input" placeholder="Operative ${i+1} Alias" value="${escapeHtml(val)}" style="font-family:var(--mono);">`;
       }
     }
   }
 });
 
+const copySyndicateCodeBtn = document.getElementById('copySyndicateCodeBtn');
+if (copySyndicateCodeBtn) {
+  copySyndicateCodeBtn.onclick = () => {
+    if (currentTeam && currentTeam.team_code) {
+      navigator.clipboard.writeText(currentTeam.team_code).then(() => {
+        copySyndicateCodeBtn.textContent = 'Copied!';
+        setTimeout(() => { copySyndicateCodeBtn.textContent = 'Copy'; }, 2000);
+      });
+    }
+  };
+}
+
 const assembleBtn = document.getElementById('assembleBtn');
 if (assembleBtn) {
   assembleBtn.onclick = () => {
     const msg = document.getElementById('assembleMsg');
     const pass = sessionStorage.getItem('teamPass') || '[Password]';
-    msg.innerHTML = `Share these credentials with your team:<br><br><b>Team:</b> ${currentTeam.name}<br><b>Password:</b> ${pass}`;
+    const code = (currentTeam && currentTeam.team_code) ? currentTeam.team_code : 'N/A';
+    msg.innerHTML = `<strong>Syndicate Access Info:</strong><br><br><b>Team Code:</b> <span style="letter-spacing:1px; color:#fff;">${escapeHtml(code)}</span><br><b>Team Name:</b> ${escapeHtml(currentTeam.name)}<br><b>Password:</b> ${escapeHtml(pass)}`;
     msg.classList.remove('hidden');
   };
 }

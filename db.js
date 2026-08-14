@@ -73,7 +73,8 @@ const db = {
         student_id TEXT DEFAULT '',
         college_id TEXT DEFAULT '',
         roster TEXT,
-        is_live INTEGER DEFAULT 0
+        is_live INTEGER DEFAULT 0,
+        team_code TEXT UNIQUE
       );
 
       CREATE TABLE IF NOT EXISTS categories (
@@ -208,6 +209,7 @@ const db = {
     // Add columns if they don't exist (for existing deployments)
     try {
       await pool.query('ALTER TABLE teams ADD COLUMN IF NOT EXISTS is_live INTEGER DEFAULT 0');
+      await pool.query('ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT UNIQUE');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_koth INTEGER DEFAULT 0');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_practice INTEGER DEFAULT 0');
     } catch(e) {
