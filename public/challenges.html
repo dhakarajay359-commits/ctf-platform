@@ -834,23 +834,25 @@ function openChallenge(id) {
   `).join('');
 
     let lockHtml = '';
-    if (currentTeam && currentTeam.operative_type === 'Syndicate') {
+    if (currentTeam && currentTeam.operative_type === 'Syndicate' && Array.isArray(currentTeam.roster) && currentTeam.roster.length > 0) {
       if (c.claimed_by) {
         lockHtml = `
-          <div style="background: rgba(255, 51, 102, 0.1); border: 1px dashed var(--danger); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-            <div style="font-family: var(--mono); color: var(--danger); font-size: 13px; margin-bottom: 8px;">🔒 LOCKED BY: ${escapeHtml(c.claimed_by)}</div>
-            <button class="btn-ghost btn-sm unlock-btn" data-id="${c.id}" style="font-size: 10px; color: var(--danger); border-color: var(--danger);">Release Lock</button>
+          <div style="background: rgba(255, 51, 102, 0.08); border: 1px dashed var(--danger); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+            <div style="font-family: var(--mono); color: var(--danger); font-size: 13px; margin-bottom: 8px;">🎯 Target Assigned to: <strong>${escapeHtml(c.claimed_by)}</strong></div>
+            <button class="btn-ghost btn-sm unlock-btn" data-id="${c.id}" style="font-size: 11px; color: var(--danger); border-color: var(--danger); padding: 4px 10px;">Release Assignment</button>
           </div>
         `;
       } else {
-        const rosterOpts = (currentTeam.roster || []).map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+        const rosterOpts = currentTeam.roster.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
         lockHtml = `
-          <div style="background: rgba(0, 210, 255, 0.1); border: 1px dashed var(--primary); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-            <div style="font-family: var(--mono); color: var(--primary); font-size: 13px; margin-bottom: 8px;">UNLOCKED TARGET</div>
-            <select id="lockAliasSelect" style="background: #111; color: var(--primary); border: 1px solid var(--primary); font-family: var(--mono); font-size: 12px; margin-right: 8px;">
-              ${rosterOpts}
-            </select>
-            <button class="btn-ghost btn-sm lock-btn" data-id="${c.id}" style="font-size: 10px; border-color: var(--primary);">Lock Target</button>
+          <div style="background: rgba(0, 210, 255, 0.05); border: 1px dashed var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+            <div style="font-family: var(--mono); color: var(--text-muted); font-size: 12px;">👥 Assign Challenge to Teammate:</div>
+            <div style="display: flex; gap: 8px; align-items: center;">
+              <select id="lockAliasSelect" style="background: #111; color: var(--primary); border: 1px solid var(--border-color); font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 4px;">
+                ${rosterOpts}
+              </select>
+              <button class="btn-ghost btn-sm lock-btn" data-id="${c.id}" style="font-size: 11px; border-color: var(--primary); padding: 4px 10px;">Assign</button>
+            </div>
           </div>
         `;
       }
