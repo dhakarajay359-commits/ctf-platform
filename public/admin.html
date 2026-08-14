@@ -669,8 +669,13 @@ document.getElementById('sendTestEmailBtn').onclick = async () => {
 
 // Save WhatsApp Settings
 document.getElementById('saveWaBtn').onclick = async () => {
-  const url = document.getElementById('waWebhookUrl').value.trim();
+  let url = document.getElementById('waWebhookUrl').value.trim();
   const token = document.getElementById('waApiToken').value.trim();
+
+  if (url && !url.startsWith('http') && url.includes('instance')) {
+    url = `https://api.ultramsg.com/${url}/messages/chat`;
+    document.getElementById('waWebhookUrl').value = url;
+  }
 
   const res = await fetch('/api/admin/settings', {
     method: 'POST',
@@ -681,7 +686,7 @@ document.getElementById('saveWaBtn').onclick = async () => {
     })
   });
   const msg = document.getElementById('waMsg');
-  msg.innerHTML = res.ok ? '<div class="alert alert-success">WhatsApp Gateway settings saved.</div>' : '<div class="alert alert-error">Failed to save WhatsApp settings.</div>';
+  msg.innerHTML = res.ok ? '<div class="alert alert-success">✓ WhatsApp Gateway settings saved successfully!</div>' : '<div class="alert alert-error">Failed to save WhatsApp settings.</div>';
   setTimeout(() => { msg.innerHTML = ''; }, 4000);
 };
 

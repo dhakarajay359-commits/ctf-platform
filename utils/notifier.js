@@ -12,6 +12,26 @@ async function getNotificationConfig() {
   const rows = await db.prepare("SELECT key, value FROM settings WHERE key LIKE 'notify_%' OR key LIKE 'smtp_%' OR key LIKE 'whatsapp_%'").all();
   const config = {};
   rows.forEach(r => { config[r.key] = r.value; });
+
+  // Environment fallbacks
+  config.smtp_host = config.smtp_host || process.env.SMTP_HOST || '';
+  config.smtp_port = config.smtp_port || process.env.SMTP_PORT || '587';
+  config.smtp_secure = config.smtp_secure || process.env.SMTP_SECURE || '0';
+  config.smtp_user = config.smtp_user || process.env.SMTP_USER || '';
+  config.smtp_pass = config.smtp_pass || process.env.SMTP_PASS || '';
+  config.smtp_from = config.smtp_from || process.env.SMTP_FROM || '';
+
+  let waUrl = config.whatsapp_webhook_url || process.env.WHATSAPP_URL || '';
+  if (!waUrl && process.env.WHATSAPP_INSTANCE_ID) {
+    waUrl = `https://api.ultramsg.com/${process.env.WHATSAPP_INSTANCE_ID}/messages/chat`;
+  }
+  // Auto-format if user only entered instance ID
+  if (waUrl && !waUrl.startsWith('http') && waUrl.includes('instance')) {
+    waUrl = `https://api.ultramsg.com/${waUrl.trim()}/messages/chat`;
+  }
+  config.whatsapp_webhook_url = waUrl;
+  config.whatsapp_api_token = config.whatsapp_api_token || process.env.WHATSAPP_TOKEN || '';
+
   return config;
 }
 
