@@ -298,8 +298,13 @@ module.exports = function (io) {
 
   // ---- Teams ----
   router.get('/teams', async (req, res) => {
-    const teams = await db.prepare('SELECT id, name, full_name, student_id, college_id, operative_type, members_count, is_banned, created_at FROM teams ORDER BY id ASC').all();
-    res.json(teams);
+    try {
+      const teams = await db.prepare('SELECT id, name, full_name, student_id, college_id, operative_type, members_count, roster, team_code, is_banned, created_at FROM teams ORDER BY id ASC').all();
+      res.json(teams || []);
+    } catch (err) {
+      console.error('Error fetching admin teams:', err);
+      res.status(500).json({ error: 'Failed to fetch teams' });
+    }
   });
   router.post('/teams/:id/ban', async (req, res) => {
     await db.prepare('UPDATE teams SET is_banned = 1 WHERE id = ?').run(req.params.id);

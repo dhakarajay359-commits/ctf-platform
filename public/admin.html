@@ -103,7 +103,16 @@
 
         <!-- TEAMS -->
         <section id="section-teams" class="hidden">
-          <h2>Teams</h2>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <h2 style="margin:0;">Registered Teams & Members</h2>
+            <div style="display:flex; gap:10px; align-items:center;">
+              <input type="text" id="adminTeamSearch" placeholder="🔍 Search team or member..." style="margin:0; padding:6px 12px; font-size:12px; width:220px;" oninput="filterAdminTeamsList()">
+              <button class="btn-ghost btn-sm" onclick="loadTeams()">🔄 Refresh</button>
+            </div>
+          </div>
+          <p style="color:var(--text-muted); font-size:13px; margin-top:-6px; margin-bottom:16px;">
+            Click on any team name or <strong>"Members"</strong> button to view all individual team members and their aliases.
+          </p>
           <div id="teamList" class="table-list"></div>
         </section>
 
@@ -1393,27 +1402,126 @@ async function saveChallenge() {
 }
 
 // ---------- Teams ----------
+let allAdminTeams = [];
+
 async function loadTeams() {
-  const teams = await fetch('/api/admin/teams').then(r => r.json());
+  try {
+    const res = await fetch('/api/admin/teams');
+    allAdminTeams = await res.json();
+    renderAdminTeams(allAdminTeams);
+  } catch (err) {
+    console.error('loadTeams error:', err);
+  }
+}
+
+function filterAdminTeamsList() {
+  const q = (document.getElementById('adminTeamSearch')?.value || '').toLowerCase().trim();
+  if (!q) {
+    renderAdminTeams(allAdminTeams);
+    return;
+  }
+  const filtered = allAdminTeams.filter(t => {
+    const nameMatch = (t.name || '').toLowerCase().includes(q);
+    const codeMatch = (t.team_code || '').toLowerCase().includes(q);
+    let rosterMatch = false;
+    try {
+      const roster = t.roster ? (typeof t.roster === 'string' ? JSON.parse(t.roster) : t.roster) : [];
+      rosterMatch = roster.some(r => String(r).toLowerCase().includes(q));
+    } catch(e) {}
+    return nameMatch || codeMatch || rosterMatch;
+  });
+  renderAdminTeams(filtered);
+}
+
+function renderAdminTeams(teams) {
   const list = document.getElementById('teamList');
-  list.innerHTML = teams.map(t => `
-    <div class="table-row">
-      <div>
-        <div class="title">${escapeHtml(t.name)} ${t.is_banned ? '<span style="color:var(--danger); font-size:12px; font-weight:bold; margin-left:10px;">[BANNED]</span>' : ''}</div>
-        <div class="sub">${t.operative_type || 'Syndicate'} (${t.members_count || 2} members) · joined ${new Date(t.created_at + 'Z').toLocaleString()}</div>
+  if (!list) return;
+  if (!teams || teams.length === 0) {
+    list.innerHTML = '<p style="color:var(--text-muted); padding:20px; text-align:center;">No teams found.</p>';
+    return;
+  }
+
+  list.innerHTML = teams.map(t => {
+    let roster = [];
+    try {
+      roster = t.roster ? (typeof t.roster === 'string' ? JSON.parse(t.roster) : t.roster) : [];
+    } catch (e) {
+      roster = [];
+    }
+    if (roster.length === 0 && t.name) {
+      roster = [t.name + (t.operative_type === 'Syndicate' ? ' (Leader)' : '')];
+    }
+    const maxCount = t.members_count || (t.operative_type === 'Lone Wolf' ? 1 : 2);
+    const isSyndicate = t.operative_type === 'Syndicate';
+
+    let membersHtml = '';
+    for (let i = 0; i < maxCount; i++) {
+      if (i < roster.length) {
+        const isLeader = i === 0 && isSyndicate;
+        membersHtml += `
+          <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(255,255,255,0.05); border-radius:4px; font-family:var(--mono); font-size:12px;">
+            <span>${isLeader ? '⭐' : '👤'}</span>
+            <span style="color:${isLeader ? 'var(--primary)' : '#fff'}; font-weight:bold;">${escapeHtml(roster[i])}</span>
+            <span style="font-size:10px; color:var(--text-muted); margin-left:auto;">${isLeader ? 'Leader / Creator' : `Teammate ${i+1}`}</span>
+          </div>
+        `;
+      } else {
+        membersHtml += `
+          <div style="display:flex; align-items:center; gap:8px; padding:6px 10px; background:rgba(0,0,0,0.25); border:1px dashed var(--border-color); border-radius:4px; font-family:var(--mono); font-size:12px; color:var(--text-muted);">
+            <span>⏳</span>
+            <span>Slot ${i+1}: Open (Awaiting teammate to join)</span>
+            <span style="font-size:10px; margin-left:auto;">Code: ${escapeHtml(t.team_code || 'N/A')}</span>
+          </div>
+        `;
+      }
+    }
+
+    return `
+      <div class="table-row" style="flex-direction:column; align-items:stretch; gap:8px; margin-bottom:12px; padding:14px; border:1px solid var(--border-color); border-radius:6px; background:var(--panel-bg);">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+          <div style="cursor:pointer;" onclick="toggleTeamMembers(${t.id})">
+            <div class="title" style="display:flex; align-items:center; gap:8px; flex-wrap:wrap;">
+              <span style="color:var(--primary); font-size:16px; font-weight:bold; text-decoration:underline; text-underline-offset:3px;" title="Click to view all team members">${escapeHtml(t.name)}</span>
+              ${t.is_banned ? '<span style="color:var(--danger); font-size:11px; font-weight:bold; padding:2px 6px; border:1px solid var(--danger); border-radius:3px;">BANNED</span>' : ''}
+              <span style="font-size:11px; font-family:var(--mono); color:var(--text-muted); background:rgba(255,255,255,0.06); padding:2px 8px; border-radius:10px;">
+                👥 ${roster.length}/${maxCount} Members
+              </span>
+              ${t.team_code ? `<span style="font-size:11px; font-family:var(--mono); color:var(--primary); background:rgba(0,210,255,0.1); padding:2px 8px; border-radius:10px;">Code: ${escapeHtml(t.team_code)}</span>` : ''}
+            </div>
+            <div class="sub" style="margin-top:4px;">
+              ${t.operative_type || 'Syndicate'} (${maxCount} members max) · Joined: ${t.created_at ? new Date(t.created_at).toLocaleString() : 'N/A'}
+              <span style="color:var(--primary); margin-left:8px; font-size:11px; font-weight:bold;">[Click to view team members ▼]</span>
+            </div>
+          </div>
+          <div class="row-actions">
+            <button class="btn-ghost btn-sm" onclick="toggleTeamMembers(${t.id})" style="border:1px solid var(--primary); color:var(--primary);">👥 View Members (${roster.length})</button>
+            ${t.is_banned ? 
+              `<button class="btn-primary btn-sm unban-team" data-id="${t.id}">Unban ✅</button>` : 
+              `<button class="btn-ghost btn-sm ban-team" data-id="${t.id}">Ban 🛑</button>`
+            }
+            <button class="btn-danger btn-sm delete-team" data-id="${t.id}">Remove</button>
+          </div>
+        </div>
+
+        <!-- Collapsible Members Breakdown -->
+        <div id="teamMembersDrawer-${t.id}" class="hidden" style="margin-top:10px; padding:12px; background:rgba(0,0,0,0.35); border:1px solid var(--border-color); border-radius:4px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:6px; flex-wrap:wrap; gap:6px;">
+            <span style="font-size:12px; font-family:var(--mono); color:var(--primary); font-weight:bold;">
+              TEAM MEMBERS / PERSONS (${roster.length} of ${maxCount} Joined)
+            </span>
+            ${t.team_code ? `<span style="font-size:11px; font-family:var(--mono); color:var(--text-muted);">Team Code: <strong style="color:var(--primary);">${escapeHtml(t.team_code)}</strong></span>` : ''}
+          </div>
+          <div style="display:flex; flex-direction:column; gap:6px;">
+            ${membersHtml}
+          </div>
+        </div>
       </div>
-      <div class="row-actions">
-        ${t.is_banned ? 
-          `<button class="btn-primary btn-sm unban-team" data-id="${t.id}">Unban ✅</button>` : 
-          `<button class="btn-ghost btn-sm ban-team" data-id="${t.id}">Ban 🛑</button>`
-        }
-        <button class="btn-danger btn-sm delete-team" data-id="${t.id}">Remove</button>
-      </div>
-    </div>
-  `).join('') || '<p>No teams registered yet.</p>';
+    `;
+  }).join('');
 
   list.querySelectorAll('.ban-team').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
       if (!confirm('Are you sure you want to ban this team?')) return;
       await fetch(`/api/admin/teams/${btn.dataset.id}/ban`, { method: 'POST' });
       loadTeams();
@@ -1421,19 +1529,29 @@ async function loadTeams() {
   });
 
   list.querySelectorAll('.unban-team').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
+      if (!confirm('Unban this team?')) return;
       await fetch(`/api/admin/teams/${btn.dataset.id}/unban`, { method: 'POST' });
       loadTeams();
     };
   });
 
   list.querySelectorAll('.delete-team').forEach(btn => {
-    btn.onclick = async () => {
+    btn.onclick = async (e) => {
+      e.stopPropagation();
       if (!confirm('Remove this team and all their progress?')) return;
       await fetch(`/api/admin/teams/${btn.dataset.id}`, { method: 'DELETE' });
       loadTeams();
     };
   });
+}
+
+function toggleTeamMembers(teamId) {
+  const drawer = document.getElementById(`teamMembersDrawer-${teamId}`);
+  if (drawer) {
+    drawer.classList.toggle('hidden');
+  }
 }
 
 // ---------- Anomalies ----------
