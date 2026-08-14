@@ -1,17 +1,21 @@
 const db = require('../db');
 
-function requireTeam(req, res, next) {
-  if (!req.session.teamId) {
+async function requireTeam(req, res, next) {
+  if (!req.session || !req.session.teamId) {
     return res.status(401).json({ error: 'Not logged in.' });
   }
   
-  const team = db.prepare('SELECT is_banned FROM teams WHERE id = ?').get(req.session.teamId);
-  if (!team || team.is_banned === 1) {
-    req.session.destroy();
-    return res.status(403).json({ error: 'This account has been banned from the CTF.' });
+  try {
+    const team = await db.prepare('SELECT is_banned FROM teams WHERE id = ?').get(req.session.teamId);
+    if (!team || team.is_banned === 1) {
+      req.session.destroy();
+      return res.status(403).json({ error: 'This account has been banned from the CTF.' });
+    }
+    next();
+  } catch (err) {
+    console.error('requireTeam error:', err);
+    return res.status(500).json({ error: 'Authentication error' });
   }
-
-  next();
 }
 
 function requireAdmin(req, res, next) {

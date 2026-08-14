@@ -441,17 +441,30 @@ module.exports = function (io) {
 
   // ---- Chat ----
   router.get('/chat/teams', async (req, res) => {
-    // Get list of teams that have sent or received messages
-    const teams = await db.prepare(`
-      SELECT DISTINCT t.id, t.name 
-      FROM teams t
-      JOIN messages m ON m.team_id = t.id
-    `).all();
-    res.json(teams);
+    try {
+      const teams = await db.prepare(`
+        SELECT t.id, t.name,
+               COUNT(m.id) AS msg_count,
+               MAX(m.created_at) AS last_msg_at
+        FROM teams t
+        LEFT JOIN messages m ON m.team_id = t.id
+        GROUP BY t.id, t.name
+        ORDER BY last_msg_at DESC NULLS LAST, t.name ASC
+      `).all();
+      res.json(teams || []);
+    } catch (err) {
+      console.error('Error fetching admin chat teams:', err);
+      res.status(500).json({ error: 'Failed to fetch teams' });
+    }
   });
   router.get('/chat/messages/:teamId', async (req, res) => {
-    const messages = await db.prepare('SELECT * FROM messages WHERE team_id = ? ORDER BY created_at ASC').all(req.params.teamId);
-    res.json(messages);
+    try {
+      const messages = await db.prepare('SELECT * FROM messages WHERE team_id = ? ORDER BY created_at ASC').all(req.params.teamId);
+      res.json(messages || []);
+    } catch (err) {
+      console.error('Error fetching chat messages for team:', err);
+      res.status(500).json({ error: 'Failed to fetch messages' });
+    }
   });
 
   // ---- Timer ----

@@ -231,17 +231,29 @@
 
         <!-- CHAT -->
         <section id="section-chat" class="hidden">
-          <h2>Support Chat</h2>
-          <div style="display:flex; gap:20px; height: 500px;">
-            <div id="chatTeamList" style="width: 250px; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:4px; overflow-y:auto; padding:10px;">
-              <div style="color:var(--text-muted); text-align:center; padding: 20px;">No active chats</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
+            <h2 style="margin:0;">Support Chat</h2>
+            <button class="btn-ghost btn-sm" onclick="loadChatTeams()">🔄 Refresh Chats</button>
+          </div>
+          <div style="display:flex; gap:20px; height: 550px;">
+            <div style="width: 280px; display:flex; flex-direction:column; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:6px; overflow:hidden;">
+              <div style="padding:10px; border-bottom:1px solid var(--border-color);">
+                <input type="text" id="chatTeamSearch" placeholder="🔍 Filter teams..." style="width:100%; box-sizing:border-box; margin:0; padding:6px 10px; font-size:12px;" oninput="filterChatTeams()">
+              </div>
+              <div id="chatTeamList" style="flex:1; overflow-y:auto; padding:5px;">
+                <div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">Loading teams...</div>
+              </div>
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:4px;">
-              <div id="chatAdminHeader" style="padding:15px; border-bottom:1px solid var(--border-color); font-weight:bold;">Select a team...</div>
-              <div id="chatAdminMessages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:10px;"></div>
-              <div style="padding:15px; border-top:1px solid var(--border-color); display:flex; gap:10px;">
-                <input type="text" id="chatAdminInput" placeholder="Reply..." style="flex:1;" disabled>
-                <button id="chatAdminSendBtn" disabled>Send</button>
+            <div style="flex:1; display:flex; flex-direction:column; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:6px; overflow:hidden;">
+              <div id="chatAdminHeader" style="padding:15px; border-bottom:1px solid var(--border-color); font-weight:bold; display:flex; justify-content:space-between; align-items:center;">
+                <span>Select a team from the left to start chatting...</span>
+              </div>
+              <div id="chatAdminMessages" style="flex:1; overflow-y:auto; padding:15px; display:flex; flex-direction:column; gap:10px;">
+                <div style="color:var(--text-muted); text-align:center; margin-top:50px;">Select a team from the left to view messages and reply.</div>
+              </div>
+              <div style="padding:12px 15px; border-top:1px solid var(--border-color); display:flex; gap:10px; background:rgba(0,0,0,0.2);">
+                <input type="text" id="chatAdminInput" placeholder="Type reply as Admin..." style="flex:1; margin:0;" disabled>
+                <button id="chatAdminSendBtn" class="btn-primary" disabled>Send</button>
               </div>
             </div>
           </div>
@@ -1581,23 +1593,48 @@ document.getElementById('changeAdminPassBtn').onclick = async () => {
 checkAdmin();
 // ---------- Admin Chat ----------
 let activeChatTeamId = null;
+let allChatTeams = [];
+
 async function loadChatTeams() {
-  const res = await fetch('/api/admin/chat/teams');
-  const teams = await res.json();
+  try {
+    const res = await fetch('/api/admin/chat/teams');
+    allChatTeams = await res.json();
+    renderChatTeamList(allChatTeams);
+  } catch (err) {
+    console.error('loadChatTeams error:', err);
+  }
+}
+
+function filterChatTeams() {
+  const q = (document.getElementById('chatTeamSearch')?.value || '').toLowerCase().trim();
+  if (!q) {
+    renderChatTeamList(allChatTeams);
+    return;
+  }
+  const filtered = allChatTeams.filter(t => (t.name || '').toLowerCase().includes(q));
+  renderChatTeamList(filtered);
+}
+
+function renderChatTeamList(teams) {
   const list = document.getElementById('chatTeamList');
+  if (!list) return;
   list.innerHTML = '';
-  if (teams.length === 0) {
-    list.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 20px;">No active chats</div>';
+  if (!teams || teams.length === 0) {
+    list.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding: 20px; font-size:12px;">No teams found</div>';
     return;
   }
   teams.forEach(t => {
     const d = document.createElement('div');
     d.className = 'chat-team-item';
-    d.style.cssText = 'padding: 10px; cursor:pointer; border-bottom:1px solid var(--border-color); transition: background 0.2s;';
-    d.textContent = t.name;
+    const isSelected = activeChatTeamId && Number(activeChatTeamId) === Number(t.id);
+    d.style.cssText = `padding: 10px 12px; cursor:pointer; border-bottom:1px solid var(--border-color); border-radius:4px; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center; transition: background 0.2s; background: ${isSelected ? 'rgba(0,210,255,0.15)' : 'transparent'};`;
+    
+    const countBadge = Number(t.msg_count) > 0 ? `<span style="background:var(--primary); color:#000; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px;">${t.msg_count}</span>` : '';
+    d.innerHTML = `
+      <div style="font-weight:${Number(t.msg_count) > 0 ? 'bold' : 'normal'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${escapeHtml(t.name)}</div>
+      <div>${countBadge}</div>
+    `;
     d.onclick = () => {
-      document.querySelectorAll('.chat-team-item').forEach(el => el.style.background = 'transparent');
-      d.style.background = 'var(--panel-hover)';
       openAdminChat(t.id, t.name);
     };
     list.appendChild(d);
@@ -1605,40 +1642,72 @@ async function loadChatTeams() {
 }
 
 async function openAdminChat(teamId, teamName) {
-  activeChatTeamId = teamId;
-  document.getElementById('chatAdminHeader').textContent = 'Chat with: ' + teamName;
-  document.getElementById('chatAdminInput').disabled = false;
-  document.getElementById('chatAdminSendBtn').disabled = false;
-  const res = await fetch('/api/admin/chat/messages/' + teamId);
-  const msgs = await res.json();
-  const box = document.getElementById('chatAdminMessages');
-  box.innerHTML = '';
-  msgs.forEach(m => appendAdminChatMessage(m));
+  activeChatTeamId = Number(teamId);
+  renderChatTeamList(allChatTeams);
+  document.getElementById('chatAdminHeader').innerHTML = `<span>Chatting with: <strong style="color:var(--primary);">${escapeHtml(teamName)}</strong></span>`;
+  const input = document.getElementById('chatAdminInput');
+  const btn = document.getElementById('chatAdminSendBtn');
+  input.disabled = false;
+  btn.disabled = false;
+  input.focus();
+  
+  try {
+    const res = await fetch('/api/admin/chat/messages/' + teamId);
+    const msgs = await res.json();
+    const box = document.getElementById('chatAdminMessages');
+    box.innerHTML = '';
+    if (!msgs || msgs.length === 0) {
+      box.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">No message history with this team yet. Send a message below to start a conversation.</div>';
+    } else {
+      msgs.forEach(m => appendAdminChatMessage(m));
+    }
+  } catch (err) {
+    console.error('openAdminChat error:', err);
+  }
 }
 
 function appendAdminChatMessage(msg) {
-  if (!activeChatTeamId || msg.team_id !== activeChatTeamId) return;
+  if (!activeChatTeamId || Number(msg.team_id) !== Number(activeChatTeamId)) return;
   const box = document.getElementById('chatAdminMessages');
+  if (box.innerHTML.includes('No message history') || box.innerHTML.includes('Select a team')) {
+    box.innerHTML = '';
+  }
+  const isAdmin = msg.is_from_admin === 1 || msg.is_from_admin === true;
   const d = document.createElement('div');
-  d.className = 'chat-msg ' + (msg.is_from_admin ? 'admin-msg' : 'user-msg');
-  d.textContent = msg.text;
+  d.className = 'chat-msg ' + (isAdmin ? 'admin-msg' : 'user-msg');
+  d.style.alignSelf = isAdmin ? 'flex-end' : 'flex-start';
+  d.style.maxWidth = '75%';
+  if (isAdmin) {
+    d.style.background = 'var(--primary)';
+    d.style.color = '#000';
+  } else {
+    d.style.background = 'rgba(255,255,255,0.08)';
+    d.style.color = '#fff';
+    d.style.border = '1px solid var(--border-color)';
+  }
+  const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+  d.innerHTML = `
+    <div style="font-size: 10px; opacity: 0.75; margin-bottom: 3px; font-family:var(--mono);">
+      ${isAdmin ? '🛡️ Admin' : '👥 Team'} ${timeStr ? `• ${timeStr}` : ''}
+    </div>
+    <div style="white-space: pre-wrap; word-break: break-word;">${escapeHtml(msg.text)}</div>
+  `;
   box.appendChild(d);
   box.scrollTop = box.scrollHeight;
 }
 
-const fbSocket = typeof io !== 'undefined' ? io() : null;
+const fbSocket = typeof io !== 'undefined' ? (window.fbSocket || (window.fbSocket = io())) : null;
 if (fbSocket) {
   fbSocket.on('chat:receive', (msg) => {
-    if (activeChatTeamId && msg.team_id === activeChatTeamId) {
+    if (activeChatTeamId && Number(msg.team_id) === Number(activeChatTeamId)) {
       appendAdminChatMessage(msg);
-    } else {
-      // Reload team list to show new teams if they messaged
-      loadChatTeams();
     }
+    loadChatTeams();
   });
 
   fbSocket.on('admin:alert', (data) => {
     const list = document.getElementById('securityAlertsList');
+    if (!list) return;
     if (list.innerHTML.includes('No security alerts')) list.innerHTML = '';
     
     const d = document.createElement('div');
@@ -1649,7 +1718,7 @@ if (fbSocket) {
 }
 
 function sendAdminChat() {
-  if (!activeChatTeamId) return;
+  if (!activeChatTeamId || !fbSocket) return;
   const input = document.getElementById('chatAdminInput');
   const text = input.value.trim();
   if (!text) return;

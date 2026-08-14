@@ -152,30 +152,37 @@ io.on('connection', socket => {
     }
   });
   socket.on('chat:send', async data => {
-    // data: { text: string, toTeamId?: number }
-    if (!data.text || !data.text.trim()) return;
-    const text = data.text.trim();
-    if (session && session.isAdmin) {
-      if (!data.toTeamId) return; // Admin must specify who to send to
-      await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 1, ?)').run(data.toTeamId, text);
-      const msg = {
-        team_id: data.toTeamId,
-        is_from_admin: 1,
-        text,
-        created_at: new Date().toISOString()
-      };
-      io.to(`room_team_${data.toTeamId}`).emit('chat:receive', msg);
-      io.to('admin_room').emit('chat:receive', msg);
-    } else if (session && session.teamId) {
-      await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 0, ?)').run(session.teamId, text);
-      const msg = {
-        team_id: session.teamId,
-        is_from_admin: 0,
-        text,
-        created_at: new Date().toISOString()
-      };
-      io.to(`room_team_${session.teamId}`).emit('chat:receive', msg);
-      io.to('admin_room').emit('chat:receive', msg);
+    try {
+      // data: { text: string, toTeamId?: number }
+      if (!data || !data.text || !data.text.trim()) return;
+      const text = data.text.trim();
+      const currentSession = socket.request.session || session;
+      if (currentSession && currentSession.isAdmin) {
+        const toTeamId = Number(data.toTeamId);
+        if (!toTeamId) return; // Admin must specify who to send to
+        await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 1, ?)').run(toTeamId, text);
+        const msg = {
+          team_id: toTeamId,
+          is_from_admin: 1,
+          text,
+          created_at: new Date().toISOString()
+        };
+        io.to(`room_team_${toTeamId}`).emit('chat:receive', msg);
+        io.to('admin_room').emit('chat:receive', msg);
+      } else if (currentSession && currentSession.teamId) {
+        const teamId = Number(currentSession.teamId);
+        await db.prepare('INSERT INTO messages (team_id, is_from_admin, text) VALUES (?, 0, ?)').run(teamId, text);
+        const msg = {
+          team_id: teamId,
+          is_from_admin: 0,
+          text,
+          created_at: new Date().toISOString()
+        };
+        io.to(`room_team_${teamId}`).emit('chat:receive', msg);
+        io.to('admin_room').emit('chat:receive', msg);
+      }
+    } catch (err) {
+      console.error('Error in socket chat:send:', err);
     }
   });
   socket.on('challenge:claim', async data => {
