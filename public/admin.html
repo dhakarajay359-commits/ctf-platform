@@ -60,11 +60,31 @@
       <div>
         <!-- CHALLENGES -->
         <section id="section-challenges">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px;">
-            <h2 style="margin:0;">Challenges</h2>
-            <button id="newChallengeBtn">+ Add challenge</button>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:20px; flex-wrap:wrap; gap:10px;">
+            <h2 style="margin:0;">Challenges Manager</h2>
+            <div style="display:flex; gap:10px;">
+              <button id="newLiveChallengeBtnTop" class="btn-primary" style="font-weight:bold;">🔴 + Add Live CTF Challenge</button>
+              <button id="newPracticeChallengeBtnTop" class="btn-ghost">🛡️ + Add Practice Challenge</button>
+            </div>
           </div>
-          <div id="challengeList" class="table-list"></div>
+
+          <!-- Live CTF Challenges -->
+          <div style="margin-bottom:28px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+              <h3 style="margin:0; color:#00d2ff;">🔴 Live CTF Event Challenges</h3>
+              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Visible to Live CTF Players</span>
+            </div>
+            <div id="liveChallengeList" class="table-list"></div>
+          </div>
+
+          <!-- Practice Challenges -->
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; border-bottom:1px solid var(--border-color); padding-bottom:8px;">
+              <h3 style="margin:0; color:#25D366;">🛡️ Practice Arena Challenges</h3>
+              <span style="font-size:12px; color:var(--text-muted); font-family:var(--mono);">Open Practice Problems</span>
+            </div>
+            <div id="challengeList" class="table-list"></div>
+          </div>
         </section>
 
         <!-- CATEGORIES -->
@@ -1082,7 +1102,12 @@ async function loadChallenges() {
   renderChals(challenges.filter(c => c.is_practice === 0), liveList, true);
 }
 
-document.getElementById('newChallengeBtn').onclick = () => openEditor(null, false);
+const liveBtnTop = document.getElementById('newLiveChallengeBtnTop');
+if (liveBtnTop) liveBtnTop.onclick = () => openEditor(null, true);
+
+const practiceBtnTop = document.getElementById('newPracticeChallengeBtnTop');
+if (practiceBtnTop) practiceBtnTop.onclick = () => openEditor(null, false);
+
 const liveBtn = document.getElementById('newLiveChallengeBtn');
 if (liveBtn) liveBtn.onclick = () => openEditor(null, true);
 
@@ -1090,13 +1115,14 @@ function catOptions(selectedId) {
   return categories.map(c => `<option value="${c.id}" ${c.id === selectedId ? 'selected' : ''}>${escapeHtml(c.name)}</option>`).join('');
 }
 
-function openEditor(challenge, isLiveContext = false) {
+function openEditor(challenge, isLiveContext = true) {
   editingChallengeId = challenge ? challenge.id : null;
   const hints = challenge?.hints || [];
+  const defaultToLive = challenge ? (challenge.is_practice === 0) : isLiveContext;
 
   document.getElementById('editorModal').innerHTML = `
     <button class="modal-close" id="closeEditor">×</button>
-    <h2>${challenge ? 'Edit challenge' : 'New challenge'}</h2>
+    <h2>${challenge ? 'Edit Challenge' : (isLiveContext ? 'New 🔴 Live CTF Challenge' : 'New 🛡️ Practice Challenge')}</h2>
 
     <label for="fTitle">Title</label>
     <input id="fTitle" value="${challenge ? escapeHtml(challenge.title) : ''}">
@@ -1132,10 +1158,11 @@ function openEditor(challenge, isLiveContext = false) {
       </div>
     </div>
 
-    <label style="display:flex; align-items:center; gap:8px; margin-bottom:15px; cursor:pointer;">
-      <input type="checkbox" id="fIsPractice" style="width:auto; margin:0;" ${(challenge ? challenge.is_practice : !isLiveContext) ? 'checked' : ''}>
-      Is Practice Challenge? (Uncheck for Live CTF challenges)
-    </label>
+    <label for="fIsPractice" style="font-weight:bold; margin-top:10px;">Target CTF Arena (Live vs Practice)</label>
+    <select id="fIsPractice" style="margin-bottom:15px; border:1px solid var(--primary); background:rgba(0,210,255,0.05);">
+      <option value="0" ${defaultToLive ? 'selected' : ''}>🔴 Live CTF Event (Appears on Live Challenge Dashboard)</option>
+      <option value="1" ${!defaultToLive ? 'selected' : ''}>🛡️ Practice Arena (Appears on Practice Dashboard)</option>
+    </select>
 
     <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:15px;">
       <label for="fDescription" style="margin-bottom:0;">Question / Description (Markdown supported)</label>
@@ -1158,25 +1185,25 @@ function openEditor(challenge, isLiveContext = false) {
     <label>Hints</label>
     <div id="hintsContainer">
       ${hints.map(h => `
-        <div class="hint-row" data-existing-id="${h.id}">
-          <input type="text" value="${escapeHtml(h.text)}" placeholder="Hint text">
-          <input type="number" value="${h.cost}" placeholder="Cost">
-          <button type="button" class="btn-ghost btn-sm remove-hint">×</button>
+        <div class="field-row hint-row" style="margin-bottom:8px;">
+          <input placeholder="Hint text" value="${escapeHtml(h.text)}" style="flex:2;">
+          <input type="number" placeholder="Cost" value="${h.cost}" style="flex:1;">
+          <button class="btn-ghost btn-sm remove-hint" style="flex:0 0 auto;">Remove</button>
         </div>
       `).join('')}
     </div>
-    <button type="button" class="btn-ghost btn-sm" id="addHintRow">+ Add hint</button>
+    <button class="btn-ghost btn-sm" id="addHintBtn" style="margin-bottom:20px;">+ Add hint</button>
 
-    <div style="margin-top:20px; display:flex; gap:10px;">
-      <button id="saveChallengeBtn">${challenge ? 'Save changes' : 'Create challenge'}</button>
-      <button type="button" class="btn-ghost" id="cancelEditor">Cancel</button>
+    <div style="display:flex; justify-content:flex-end; gap:10px;">
+      <button class="btn-ghost" id="cancelEditorBtn">Cancel</button>
+      <button class="btn-primary" id="saveChallengeBtn">Save Challenge</button>
     </div>
-    <div id="editorMsg"></div>
+    <div id="editorMsg" style="margin-top:10px;"></div>
   `;
 
   document.getElementById('editorBackdrop').classList.remove('hidden');
   document.getElementById('closeEditor').onclick = closeEditor;
-  document.getElementById('cancelEditor').onclick = closeEditor;
+  document.getElementById('cancelEditorBtn').onclick = closeEditor;
 
   // Populate requires dropdown with existing challenges
   fetch('/api/admin/challenges').then(r => r.json()).then(allChals => {
@@ -1264,7 +1291,7 @@ async function saveChallenge() {
   const points = document.getElementById('fPoints').value;
   const difficulty = document.getElementById('fDifficulty').value;
   const visible = document.getElementById('fVisible').value === '1';
-  const is_practice = document.getElementById('fIsPractice').checked;
+  const is_practice = document.getElementById('fIsPractice').value === '1';
   const requires = document.getElementById('fRequires').value || null;
   const description = document.getElementById('fDescription').value;
   const link = document.getElementById('fLink').value.trim();

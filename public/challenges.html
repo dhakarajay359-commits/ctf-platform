@@ -538,7 +538,9 @@ async function loadChallenges() {
   
   const hasLive = challenges.some(c => c.is_practice === 0);
   const hasPractice = challenges.some(c => c.is_practice === 1);
-  if (hasLive && !hasPractice) activeMode = 'Live';
+  if (hasLive && (!activeMode || activeMode === 'Practice')) {
+    activeMode = 'Live';
+  }
 
   const modeTabs = document.getElementById('modeTabs');
   if (modeTabs) {
