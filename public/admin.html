@@ -16,6 +16,7 @@
 <script src="/js/terminal.js"></script>
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/flatpickr.min.css">
 <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/flatpickr/dist/themes/dark.css">
+<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
 </head>
 <body>
 <div class="topbar">
@@ -1661,9 +1662,8 @@ document.querySelectorAll('.admin-sidebar button').forEach(btn => {
     if (btn.dataset.section === 'chat') loadChatTeams();
   });
 });
-</script>
-<script src="https://cdn.jsdelivr.net/npm/flatpickr"></script>
-<script>
+
+if (typeof flatpickr !== 'undefined') {
   flatpickr("input[type=datetime-local]", {
     enableTime: true,
     dateFormat: "Y-m-d\\TH:i",
@@ -1673,6 +1673,7 @@ document.querySelectorAll('.admin-sidebar button').forEach(btn => {
     minuteIncrement: 1,
     time_24hr: false
   });
+}
 </script>
 </body>
 </html>
