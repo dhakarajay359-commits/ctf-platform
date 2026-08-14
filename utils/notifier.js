@@ -218,25 +218,45 @@ async function sendWhatsApp({ phone, message, eventTitle }) {
 async function getRegisteredParticipants() {
   const submissions = await db.prepare('SELECT id, data, submitted_at FROM live_registration_submissions').all();
   const participants = [];
+  const seen = new Set();
 
   for (const s of submissions) {
     try {
       const d = JSON.parse(s.data);
-      // Look for Email
-      let email = d['Email ID'] || d['Email'] || d['email'] || d['Email Address'] || null;
-      // Look for Mobile Number
-      let phone = d['Mobile Number'] || d['Phone'] || d['phone'] || d['Mobile'] || d['WhatsApp Number'] || null;
-      let name = d['Full Name'] || d['Name'] || d['name'] || 'Participant';
-      let college = d['College Name'] || d['College'] || '';
+      let email = null;
+      let phone = null;
+      let name = null;
+      let college = null;
 
+      for (const [key, val] of Object.entries(d)) {
+        const k = key.toLowerCase().trim();
+        const v = val ? String(val).trim() : '';
+        if (!v) continue;
+
+        if (k.includes('mail')) {
+          email = v;
+        } else if (k.includes('mobile') || k.includes('phone') || k.includes('whatsapp') || k.includes('contact') || k.includes('number')) {
+          phone = v;
+        } else if (k.includes('name') && !k.includes('college') && !k.includes('team')) {
+          name = v;
+        } else if (k.includes('college') || k.includes('university') || k.includes('institute')) {
+          college = v;
+        }
+      }
+
+      name = name || 'Participant';
       if (email || phone) {
-        participants.push({
-          id: s.id,
-          name,
-          email: email ? String(email).trim() : null,
-          phone: phone ? String(phone).trim() : null,
-          college
-        });
+        const uniqueKey = (email || '').toLowerCase() + '|' + (phone || '');
+        if (!seen.has(uniqueKey)) {
+          seen.add(uniqueKey);
+          participants.push({
+            id: s.id,
+            name,
+            email,
+            phone,
+            college: college || ''
+          });
+        }
       }
     } catch (e) {}
   }
