@@ -109,25 +109,36 @@ io.on('connection', socket => {
     const teamId = session.teamId;
     socket.join(`room_team_${teamId}`);
 
-    // IP Tracking Logic
-    const ip = socket.handshake.headers['x-forwarded-for'] || socket.handshake.address;
+    // IP Tracking Logic (extract real client IP from Cloudflare / Proxy headers)
+    const rawIpHeader = socket.handshake.headers['cf-connecting-ip'] || socket.handshake.headers['x-forwarded-for'] || socket.handshake.address || '';
+    const clientIp = typeof rawIpHeader === 'string' ? rawIpHeader.split(',')[0].trim() : String(rawIpHeader);
+
     if (!teamIpTracker[teamId]) teamIpTracker[teamId] = new Map();
-    const count = teamIpTracker[teamId].get(ip) || 0;
-    teamIpTracker[teamId].set(ip, count + 1);
+    const count = teamIpTracker[teamId].get(clientIp) || 0;
+    teamIpTracker[teamId].set(clientIp, count + 1);
+
     if (teamIpTracker[teamId].size > 1) {
-      io.to('admin_room').emit('admin:alert', {
-        type: 'ACCOUNT_SHARING',
-        message: `Team "${session.teamName}" has active connections from multiple IPs: ${Array.from(teamIpTracker[teamId].keys()).join(', ')}`,
-        timestamp: new Date().toISOString()
-      });
+      const now = Date.now();
+      const lastAlert = teamIpTracker[teamId]._lastAlert || 0;
+      if (now - lastAlert > 60000) { // Debounce alerts to once per minute per team
+        teamIpTracker[teamId]._lastAlert = now;
+        const distinctIps = Array.from(teamIpTracker[teamId].keys()).filter(k => !k.startsWith('_'));
+        if (distinctIps.length > 1) {
+          io.to('admin_room').emit('admin:alert', {
+            type: 'ACCOUNT_SHARING',
+            message: `Team "${session.teamName}" has active connections from multiple distinct IPs: ${distinctIps.join(', ')}`,
+            timestamp: new Date().toISOString()
+          });
+        }
+      }
     }
     socket.on('disconnect', () => {
       if (teamIpTracker[teamId]) {
-        const newCount = teamIpTracker[teamId].get(ip) - 1;
+        const newCount = (teamIpTracker[teamId].get(clientIp) || 1) - 1;
         if (newCount <= 0) {
-          teamIpTracker[teamId].delete(ip);
+          teamIpTracker[teamId].delete(clientIp);
         } else {
-          teamIpTracker[teamId].set(ip, newCount);
+          teamIpTracker[teamId].set(clientIp, newCount);
         }
       }
     });
