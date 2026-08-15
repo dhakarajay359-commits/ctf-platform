@@ -455,6 +455,22 @@
   </div>
 </div>
 
+<!-- Scope of Work Modal -->
+<div class="modal-backdrop hidden" id="scopeModal" style="z-index: 10002;">
+  <div class="modal challenge-card" style="max-width: 760px; padding: 24px; border-color: rgba(0, 210, 255, 0.4); max-height: 85vh; overflow-y: auto;">
+    <button class="modal-close" onclick="document.getElementById('scopeModal').classList.add('hidden')">×</button>
+    <div id="scopeModalContent"></div>
+  </div>
+</div>
+
+<!-- Smart Progressive Hints Modal -->
+<div class="modal-backdrop hidden" id="hintsModal" style="z-index: 10002;">
+  <div class="modal challenge-card" style="max-width: 720px; padding: 24px; border-color: #00d2ff; max-height: 85vh; overflow-y: auto;">
+    <button class="modal-close" onclick="document.getElementById('hintsModal').classList.add('hidden')">×</button>
+    <div id="hintsModalContent"></div>
+  </div>
+</div>
+
 <script src="/socket.io/socket.io.js"></script>
 
 <!-- Feedback Modal -->
@@ -870,21 +886,58 @@ function getChallengeCorporateContext(c) {
   };
 }
 
-function openChallenge(id) {
+window.openScopeModal = function(id) {
   const c = challenges.find(x => x.id === id);
   if (!c) return;
-  
   const dossier = getChallengeCorporateContext(c);
-
   let artifacts = {};
   try {
     artifacts = c.target_artifacts ? (typeof c.target_artifacts === 'string' ? JSON.parse(c.target_artifacts) : c.target_artifacts) : {};
   } catch(e) { artifacts = {}; }
 
+  const html = `
+    <div class="eyebrow" style="color:var(--primary); display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span>🏢 CLIENT ENGAGEMENT DOSSIER</span>
+      <span style="font-family:var(--mono); color:#ffb74d; font-size:11px; font-weight:bold;">TICKET #${escapeHtml(dossier.ticket)}</span>
+    </div>
+    <h2 style="margin:0 0 10px 0; font-size:20px; color:#fff;">Scope of Work // Client Incident Brief</h2>
+    <div style="font-family:var(--mono); font-size:12px; color:var(--text-muted); margin-bottom:16px; background:rgba(0,0,0,0.3); padding:8px 12px; border-radius:6px; border:1px solid rgba(255,255,255,0.06);">
+      DESIGNATED TARGET ASSET: <strong style="color:#00e5ff; letter-spacing:0.5px;">${escapeHtml(dossier.asset)}</strong>
+    </div>
+
+    <div class="markdown-body" style="font-size:13px; color:#cbd5e1; line-height:1.65; margin-bottom:20px; background:rgba(0,210,255,0.02); padding:14px; border-radius:6px; border:1px solid rgba(0,210,255,0.15);">
+      ${marked.parse(dossier.contextText)}
+    </div>
+
+    <div style="border-top:1px dashed rgba(255,255,255,0.1); padding-top:14px; display:flex; gap:10px; flex-wrap:wrap;">
+      <button type="button" class="btn-ghost btn-sm" onclick="openTopologyModal('${c.id}')" style="font-size:11px; border-color:var(--primary); color:var(--primary); padding:6px 12px; cursor:pointer;">
+        🗺️ View Network Topology Map
+      </button>
+      <button type="button" class="btn-ghost btn-sm" onclick="openEmailModal('${c.id}')" style="font-size:11px; border-color:#ffb74d; color:#ffb74d; padding:6px 12px; cursor:pointer;">
+        📧 Intercepted Emails & Logs
+      </button>
+      ${artifacts.osintPackageUrl ? `
+        <a href="${escapeHtml(artifacts.osintPackageUrl)}" download class="btn-ghost btn-sm" style="font-size:11px; border-color:#00ff88; color:#00ff88; padding:6px 12px; text-decoration:none; display:inline-flex; align-items:center;">
+          📁 Download OSINT Forensic Package
+        </a>
+      ` : ''}
+    </div>
+  `;
+
+  document.getElementById('scopeModalContent').innerHTML = html;
+  document.getElementById('scopeModal').classList.remove('hidden');
+};
+
+window.openHintsModal = function(id) {
+  const c = challenges.find(x => x.id === id);
+  if (!c) return;
   const hintsList = c.hints || [];
-  let hintsHtml = '';
-  if (hintsList.length > 0) {
-    const hintItemsHtml = hintsList.map((h, idx) => {
+
+  let contentHtml = '';
+  if (hintsList.length === 0) {
+    contentHtml = '<div style="color:var(--text-muted); text-align:center; padding:30px 0; font-family:var(--mono);">No progressive hints configured for this challenge.</div>';
+  } else {
+    contentHtml = hintsList.map((h, idx) => {
       const level = h.level || (idx + 1);
       const isLevel1 = level === 1;
       const isLevel2 = level === 2;
@@ -914,36 +967,74 @@ function openChallenge(id) {
       }
 
       return `
-        <div class="progressive-hint-tier" style="background:${levelBg}; border:1px solid ${levelBorder}; border-radius:6px; padding:12px; margin-bottom:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:${h.revealed ? '8px' : '0'}; flex-wrap:wrap; gap:6px;">
+        <div class="progressive-hint-tier" style="background:${levelBg}; border:1px solid ${levelBorder}; border-radius:6px; padding:14px; margin-bottom:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:${h.revealed ? '10px' : '0'}; flex-wrap:wrap; gap:8px;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span style="font-family:var(--mono); font-weight:bold; font-size:11px; color:${levelBadgeColor}; letter-spacing:0.5px;">${levelLabel}</span>
-              <span style="font-family:var(--mono); font-size:10px; background:rgba(0,0,0,0.4); color:${levelBadgeColor}; padding:1px 6px; border-radius:3px; border:1px solid ${levelBorder};">${costText}</span>
+              <span style="font-family:var(--mono); font-size:10px; background:rgba(0,0,0,0.4); color:${levelBadgeColor}; padding:2px 8px; border-radius:4px; border:1px solid ${levelBorder};">${costText}</span>
             </div>
             ${h.revealed 
-              ? `<span style="font-family:var(--mono); font-size:10px; color:#00ff88; font-weight:bold;">✓ DECRYPTED</span>`
-              : `<button type="button" class="btn-ghost btn-sm progressive-reveal-btn" data-hint-id="${h.id}" data-cost="${h.cost}" data-level="${level}" style="font-size:11px; padding:3px 10px; border-color:${levelBadgeColor}; color:${levelBadgeColor};">${unlockBtnText}</button>`
+              ? `<span style="font-family:var(--mono); font-size:11px; color:#00ff88; font-weight:bold;">✓ DECRYPTED</span>`
+              : `<button type="button" class="btn-ghost btn-sm progressive-modal-reveal-btn" data-hint-id="${h.id}" data-cost="${h.cost}" data-level="${level}" style="font-size:11px; padding:4px 12px; border-color:${levelBadgeColor}; color:${levelBadgeColor}; cursor:pointer;">${unlockBtnText}</button>`
             }
           </div>
           ${h.revealed ? `
-            <div style="font-size:12px; color:#f1f5f9; line-height:1.5; font-family:var(--mono); background:rgba(0,0,0,0.5); padding:10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); white-space:pre-wrap;">${escapeHtml(h.text)}</div>
+            <div style="font-size:12px; color:#f1f5f9; line-height:1.55; font-family:var(--mono); background:rgba(0,0,0,0.55); padding:12px; border-radius:4px; border:1px solid rgba(255,255,255,0.08); white-space:pre-wrap;">${escapeHtml(h.text)}</div>
           ` : ''}
         </div>
       `;
     }).join('');
-
-    hintsHtml = `
-      <div id="smart-hints-box" style="background:rgba(10,14,22,0.6); border:1px solid var(--border-color); border-radius:8px; padding:14px; margin-top:16px; margin-bottom:16px;">
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
-          <span style="font-family:var(--mono); font-size:12px; font-weight:bold; color:var(--primary); display:flex; align-items:center; gap:6px;">
-            <span>💡</span> SMART PROGRESSIVE HINTS SYSTEM
-          </span>
-          <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">3-Tier Scaled Dynamic Deductions</span>
-        </div>
-        ${hintItemsHtml}
-      </div>
-    `;
   }
+
+  const html = `
+    <div class="eyebrow" style="color:var(--primary); display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <span>💡 SMART PROGRESSIVE HINTS SYSTEM</span>
+      <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">3-Tier Scaled Dynamic Deductions</span>
+    </div>
+    <h2 style="margin:0 0 8px 0; font-size:20px; color:#fff;">Hints & Strategic Intel</h2>
+    <p style="color:var(--text-muted); font-size:12px; margin-bottom:16px;">
+      Need assistance? Reveal progressive hints tier-by-tier. Deductions are subtracted directly from your score upon confirmation.
+    </p>
+
+    <div id="hintsModalList">${contentHtml}</div>
+  `;
+
+  document.getElementById('hintsModalContent').innerHTML = html;
+  document.getElementById('hintsModal').classList.remove('hidden');
+
+  document.querySelectorAll('.progressive-modal-reveal-btn').forEach(btn => {
+    btn.onclick = async (e) => {
+      e.preventDefault();
+      const hintId = btn.dataset.hintId;
+      const cost = Number(btn.dataset.cost) || 0;
+      const level = btn.dataset.level || '1';
+
+      if (cost > 0) {
+        const confirmed = confirm(`⚠️ Dynamic Point Deduction Warning:\n\nUnlocking Level ${level} will deduct ${cost} points from your team's total score.\n\nAre you sure you want to reveal this hint?`);
+        if (!confirmed) return;
+      }
+
+      btn.disabled = true;
+      btn.textContent = 'Decrypting...';
+      try {
+        await fetch(`/api/challenges/hints/${hintId}/reveal`, { method: 'POST' });
+        await loadChallenges();
+        openHintsModal(id);
+        openChallenge(id);
+      } catch (err) {
+        console.error('Error revealing hint:', err);
+      }
+    };
+  });
+};
+
+function openChallenge(id) {
+  const c = challenges.find(x => x.id === id);
+  if (!c) return;
+  
+  const dossier = getChallengeCorporateContext(c);
+  const hintsList = c.hints || [];
+  const revealedHintsCount = hintsList.filter(h => h.revealed).length;
 
   let lockHtml = '';
   if (currentTeam && currentTeam.operative_type === 'Syndicate' && Array.isArray(currentTeam.roster) && currentTeam.roster.length > 0) {
@@ -978,34 +1069,8 @@ function openChallenge(id) {
     </div>
     <h2 style="margin-top:4px; margin-bottom:14px;">${escapeHtml(c.title)}</h2>
 
-    <!-- Corporate Scope of Work Dossier -->
-    <div style="background: rgba(0, 210, 255, 0.03); border: 1px solid rgba(0, 210, 255, 0.25); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; box-shadow: inset 0 0 15px rgba(0, 210, 255, 0.02);">
-      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 210, 255, 0.12); padding-bottom:6px; margin-bottom:10px; font-family:var(--mono); font-size:11px; flex-wrap:wrap; gap:6px;">
-        <span style="color:var(--primary); font-weight:bold; display:flex; align-items:center; gap:6px;">
-          <span>🏢</span> SCOPE OF WORK // CLIENT INCIDENT BRIEF
-        </span>
-        <span style="color:var(--text-muted);">TARGET: <strong style="color:#00e5ff;">${escapeHtml(dossier.asset)}</strong></span>
-      </div>
-      <div class="markdown-body" style="font-size:13px; color:#cbd5e1; line-height:1.6; margin-bottom:12px;">
-        ${marked.parse(dossier.contextText)}
-      </div>
-      <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px dashed rgba(255,255,255,0.08); padding-top:10px;">
-        <button type="button" class="btn-ghost btn-sm" onclick="openTopologyModal('${c.id}')" style="font-size:11px; border-color:var(--primary); color:var(--primary); padding:3px 10px; cursor:pointer;">
-          🗺️ View Network Topology Map
-        </button>
-        <button type="button" class="btn-ghost btn-sm" onclick="openEmailModal('${c.id}')" style="font-size:11px; border-color:#ffb74d; color:#ffb74d; padding:3px 10px; cursor:pointer;">
-          📧 Intercepted Emails & Logs
-        </button>
-        ${artifacts.osintPackageUrl ? `
-          <a href="${escapeHtml(artifacts.osintPackageUrl)}" download class="btn-ghost btn-sm" style="font-size:11px; border-color:#00ff88; color:#00ff88; padding:3px 10px; text-decoration:none; display:inline-flex; align-items:center;">
-            📁 Download OSINT Forensic Package
-          </a>
-        ` : ''}
-      </div>
-    </div>
-
-    <!-- Highlighted Question & Mission Statement Box -->
-    <div style="background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.35); border-left: 4px solid #00ff88; border-radius: 8px; padding: 16px 18px; margin-bottom: 20px; box-shadow: 0 0 20px rgba(0, 255, 136, 0.05);">
+    <!-- Highlighted Question & Mission Statement Box (DIRECTLY AT TOP) -->
+    <div style="background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.35); border-left: 4px solid #00ff88; border-radius: 8px; padding: 16px 18px; margin-bottom: 16px; box-shadow: 0 0 20px rgba(0, 255, 136, 0.05);">
       <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 255, 136, 0.15); padding-bottom:8px; margin-bottom:12px;">
         <span style="color:#00ff88; font-weight:bold; font-family:var(--mono); font-size:12px; display:flex; align-items:center; gap:6px; letter-spacing:0.5px;">
           <span>🎯</span> CHALLENGE QUESTION // MISSION OBJECTIVE
@@ -1017,8 +1082,26 @@ function openChallenge(id) {
       </div>
     </div>
 
+    <!-- Quick Access Popup Options Bar -->
+    <div style="display:flex; gap:10px; flex-wrap:wrap; margin-bottom:20px; align-items:center;">
+      <button type="button" class="btn-ghost btn-sm" onclick="openScopeModal(${c.id})" style="font-size:12px; padding:6px 14px; border-color:var(--primary); color:var(--primary); background:rgba(0,210,255,0.06); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <span>🏢</span> <strong>Scope of Work & Client Brief</strong>
+        <span style="font-size:10px; opacity:0.8; font-family:var(--mono);">[${escapeHtml(dossier.asset)}]</span>
+      </button>
+
+      <button type="button" class="btn-ghost btn-sm" onclick="openHintsModal(${c.id})" style="font-size:12px; padding:6px 14px; border-color:#ffb74d; color:#ffb74d; background:rgba(255,183,77,0.06); display:inline-flex; align-items:center; gap:6px; cursor:pointer;">
+        <span>💡</span> <strong>Smart Hints</strong>
+        <span style="font-size:10px; font-family:var(--mono); background:rgba(255,183,77,0.2); padding:1px 6px; border-radius:3px;">${revealedHintsCount}/${hintsList.length} Unlocked</span>
+      </button>
+
+      ${c.link ? `
+        <a href="${escapeHtml(c.link)}" target="_blank" rel="noopener" class="btn-ghost btn-sm" style="font-size:12px; padding:6px 14px; border-color:#00ff88; color:#00ff88; background:rgba(0,255,136,0.06); display:inline-flex; align-items:center; gap:6px; text-decoration:none;">
+          <span>🌐</span> <strong>Access Target Asset →</strong>
+        </a>
+      ` : ''}
+    </div>
+
     ${lockHtml}
-    ${c.link ? `<p><a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Access Target Asset →</a></p>` : ''}
     ${c.docker_image && !c.solved ? `
       <div id="sandbox-area" style="background: rgba(0,0,0,0.5); border: 1px solid var(--primary); padding: 16px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(0,210,255,0.05);">
         <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
@@ -1038,7 +1121,7 @@ function openChallenge(id) {
         <div id="deployResult" class="hidden" style="margin-top:12px; font-family:var(--mono); font-size:12px; border-radius:6px; padding:12px;"></div>
       </div>
     ` : ''}
-    ${hintsHtml}
+
     <div id="submitArea" style="margin-top:24px;">
       ${c.solved
         ? `
