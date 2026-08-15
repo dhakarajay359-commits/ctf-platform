@@ -1029,9 +1029,17 @@ function openChallenge(id) {
       </div>
     </div>
 
-    <div class="markdown-body" style="margin-bottom: 20px;">
-      <h4 style="color:#fff; margin:0 0 8px 0; font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:1px; opacity:0.8;">[Technical Assessment Notes]</h4>
-      ${marked.parse(c.description || '')}
+    <!-- Highlighted Question & Mission Statement Box -->
+    <div style="background: rgba(0, 255, 136, 0.04); border: 1px solid rgba(0, 255, 136, 0.35); border-left: 4px solid #00ff88; border-radius: 8px; padding: 16px 18px; margin-bottom: 20px; box-shadow: 0 0 20px rgba(0, 255, 136, 0.05);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 255, 136, 0.15); padding-bottom:8px; margin-bottom:12px;">
+        <span style="color:#00ff88; font-weight:bold; font-family:var(--mono); font-size:12px; display:flex; align-items:center; gap:6px; letter-spacing:0.5px;">
+          <span>🎯</span> CHALLENGE QUESTION // MISSION OBJECTIVE
+        </span>
+        <span style="font-size:10px; font-family:var(--mono); background:rgba(0, 255, 136, 0.15); color:#00ff88; padding:2px 8px; border-radius:4px; border:1px solid rgba(0, 255, 136, 0.3);">PRIMARY TASK</span>
+      </div>
+      <div class="markdown-body" style="color:#f8fafc; font-size:14px; line-height:1.7;">
+        ${marked.parse(c.description || '')}
+      </div>
     </div>
 
     ${lockHtml}
