@@ -18,6 +18,9 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const pgSession = require('connect-pg-simple')(session);
 
+// Global Sandbox Active Map
+global.activeSandboxes = global.activeSandboxes || new Map();
+
 // Easter Egg Header
 app.use((req, res, next) => {
   res.setHeader('X-OmniCorp-Secret', 'flag{headers_are_cool_1337}');
@@ -275,6 +278,7 @@ setInterval(async () => {
 
 // Sandbox Cleanup Job (Runs every 1 minute)
 setInterval(() => {
+  if (!global.activeSandboxes) return;
   const now = Date.now();
   for (const [cId, info] of global.activeSandboxes.entries()) {
     if (now > info.expiresAt) {
