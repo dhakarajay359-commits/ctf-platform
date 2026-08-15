@@ -100,8 +100,13 @@
       }
     }
 
+    const seenMessageIds = new Set();
+
     function appendMessage(msg) {
-      if (!chatMessages) return;
+      if (!chatMessages || !msg) return;
+      if (msg.id && seenMessageIds.has(msg.id)) return;
+      if (msg.id) seenMessageIds.add(msg.id);
+
       const isAdmin = msg.is_from_admin === 1 || msg.is_from_admin === true;
       const div = document.createElement('div');
       div.className = 'chat-msg ' + (isAdmin ? 'admin-msg' : 'user-msg');
@@ -161,25 +166,41 @@
           chatBadge.classList.remove('hidden');
         }
       });
+    }
 
-      function sendMessage() {
-        let text = chatInput.value.trim();
-        if (!text) return;
+    async function sendMessage() {
+      let text = chatInput.value.trim();
+      if (!text) return;
 
-        const aliasSelect = document.getElementById('chatAliasSelect');
-        if (aliasSelect && !aliasSelect.classList.contains('hidden') && aliasSelect.value) {
-          text = `[${aliasSelect.value}] ${text}`;
-        }
-
-        fbSocket.emit('chat:send', { text });
-        chatInput.value = '';
+      const aliasSelect = document.getElementById('chatAliasSelect');
+      if (aliasSelect && !aliasSelect.classList.contains('hidden') && aliasSelect.value) {
+        text = `[${aliasSelect.value}] ${text}`;
       }
 
-      chatSendBtn.onclick = sendMessage;
-      chatInput.addEventListener('keypress', (e) => {
-        if (e.key === 'Enter') sendMessage();
-      });
+      chatInput.value = '';
+
+      try {
+        const res = await fetch('/api/chat/messages', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ text })
+        });
+        if (res.ok) {
+          const msg = await res.json();
+          appendMessage(msg);
+        } else {
+          console.warn('Chat send error from server');
+        }
+      } catch (e) {
+        console.error('Chat error:', e);
+        if (fbSocket) fbSocket.emit('chat:send', { text });
+      }
     }
+
+    chatSendBtn.onclick = sendMessage;
+    chatInput.addEventListener('keypress', (e) => {
+      if (e.key === 'Enter') sendMessage();
+    });
   }
 
   if (document.readyState === 'loading') {
