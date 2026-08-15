@@ -680,22 +680,21 @@ module.exports = function (io) {
 
     await db.prepare(`
       INSERT INTO remediations (team_id, challenge_id, remediation_text, status, awarded_points, submitted_at)
-      VALUES (?, ?, ?, 'approved', ?, CURRENT_TIMESTAMP)
+      VALUES (?, ?, ?, 'pending', ?, CURRENT_TIMESTAMP)
       ON CONFLICT (team_id, challenge_id)
-      DO UPDATE SET remediation_text = EXCLUDED.remediation_text, submitted_at = CURRENT_TIMESTAMP
+      DO UPDATE SET remediation_text = EXCLUDED.remediation_text, status = 'pending', submitted_at = CURRENT_TIMESTAMP
     `).run(teamId, challengeId, remediation_text.trim(), bonusPoints);
 
     io.emit('activity', {
       team: req.session.teamName,
-      challenge: `${challenge.title} [Remediation Fix Approved +${bonusPoints} pts]`
+      challenge: `${challenge.title} [Remediation Advisory Submitted for Review]`
     });
-
-    broadcastScoreboard(io);
 
     res.json({
       success: true,
+      status: 'pending',
       awardedPoints: bonusPoints,
-      message: `Remediation report accepted! +${bonusPoints} bonus points added to your score.`
+      message: `Remediation report submitted for Admin Review! +${bonusPoints} bonus points will be credited upon approval.`
     });
   });
 

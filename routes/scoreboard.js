@@ -69,10 +69,10 @@ async function computeScoreboard(mode = 'live') {
     }
   }
   const rows = teams.map(t => {
-    const earned = solveMap.get(t.id)?.earned || 0;
-    const spent = hintMap.get(t.id) || 0;
-    const koth = kothMap.get(t.id) || 0;
-    const remBonus = remMap.get(t.id) || 0;
+    const earned = Number(solveMap.get(t.id)?.earned || 0);
+    const spent = Number(hintMap.get(t.id) || 0);
+    const koth = Number(kothMap.get(t.id) || 0);
+    const remBonus = Number(remMap.get(t.id) || 0);
     const score = earned - spent + koth + remBonus;
 
     // Compute badges
@@ -152,7 +152,7 @@ router.get('/report/:teamId', async (req, res) => {
     score: teamRank.score,
     categories: catPoints.map(c => ({
       category: c.category || 'Uncategorized',
-      points: c.points
+      points: Number(c.points) || 0
     }))
   });
 });
@@ -165,7 +165,7 @@ router.get('/graph', async (req, res) => {
   const teamIds = top10.map(t => t.teamId);
   const placeholders = teamIds.map(() => '?').join(',');
 
-  // Get all solves and hints for these teams
+  // Get all solves, hints, and approved remediations for these teams
   const solves = await db.prepare(`
     SELECT s.team_id, COALESCE(s.awarded_points, c.points) AS points, s.solved_at AS time, 'solve' AS type
     FROM solves s
@@ -179,7 +179,14 @@ router.get('/graph', async (req, res) => {
     JOIN challenges c ON c.id = h.challenge_id
     WHERE hr.team_id IN (${placeholders}) AND c.is_practice = ?
   `).all(...teamIds, isPractice);
-  const events = [...solves, ...hints].sort((a, b) => {
+  const remediations = await db.prepare(`
+    SELECT r.team_id, r.awarded_points AS points, r.submitted_at AS time, 'remediation' AS type
+    FROM remediations r
+    JOIN challenges c ON c.id = r.challenge_id
+    WHERE r.team_id IN (${placeholders}) AND c.is_practice = ? AND r.status = 'approved'
+  `).all(...teamIds, isPractice);
+
+  const events = [...solves, ...hints, ...remediations].sort((a, b) => {
     return new Date(a.time).getTime() - new Date(b.time).getTime();
   });
 
@@ -203,7 +210,7 @@ router.get('/graph', async (req, res) => {
     datasets[t.teamId].data[0].x = startTimestamp - 60000; // 1 min before first event
   });
   events.forEach(ev => {
-    currentScores[ev.team_id] += ev.points;
+    currentScores[ev.team_id] += Number(ev.points) || 0;
     datasets[ev.team_id].data.push({
       x: new Date(ev.time).getTime(),
       y: currentScores[ev.team_id]
