@@ -279,7 +279,6 @@
     <a href="/scoreboard.html">Scoreboard</a>
     <a href="/payloads.html">Payloads</a>
     <a href="/campaign.html">Campaign</a>
-    <button id="liveRegisterBtn" class="btn-primary btn-sm hidden" style="margin-left:16px;">Register for Live CTF</button>
     <button id="zenModeBtn" class="btn-ghost btn-sm" style="margin-left:16px;" onclick="toggleZenMode()">Zen Mode</button>
     <button id="profileBtn" class="btn-ghost btn-sm" style="margin-left:16px;">My Profile</button>
     <button id="logoutBtn" class="btn-ghost btn-sm">Sign out</button>
@@ -287,10 +286,6 @@
 </div>
 
 <main style="padding: 20px; max-width: 1400px; margin: 0 auto; position: relative;">
-  <div id="liveRegBanner" style="display:none; background: linear-gradient(90deg, rgba(0, 210, 255, 0.2), rgba(0, 210, 255, 0.05)); border: 1px solid var(--primary); padding: 15px; border-radius: 4px; margin-bottom: 20px; text-align: center;">
-    <span style="color: #fff; font-size: 16px; font-weight: bold; margin-right: 15px;">🚨 Live CTF Event: <span id="liveRegTitle">Registration is open!</span></span>
-    <a href="/register-live.html" class="btn-primary" style="text-decoration:none; display:inline-block; padding: 5px 15px; font-size: 14px;">Register Now</a>
-  </div>
 
 
 
@@ -461,26 +456,6 @@
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
-<!-- Live CTF Registration Modal -->
-<div class="modal-backdrop hidden" id="liveRegisterModal">
-  <div class="modal" style="max-width: 500px;">
-    <button class="modal-close" onclick="document.getElementById('liveRegisterModal').classList.add('hidden')">×</button>
-    <h2>Live CTF Registration</h2>
-    <p style="color:var(--text-muted); margin-bottom: 20px;">Please provide your details to participate in the upcoming live event.</p>
-    <form id="liveRegisterForm" style="display:flex; flex-direction:column; gap:10px;">
-      <label>Full Name</label>
-      <input id="lrFullName" required>
-      <label>Student ID</label>
-      <input id="lrStudentId" required>
-      <label>College ID / Name</label>
-      <input id="lrCollegeId" required>
-      <div id="lrError" class="alert alert-error hidden"></div>
-      <button type="submit" class="btn-primary" style="margin-top: 10px;">Submit Registration</button>
-    </form>
-  </div>
-</div>
-
-
 
 <!-- Feedback Modal -->
 <div class="modal-backdrop hidden" id="feedbackModal" style="z-index: 9999;">
@@ -1947,38 +1922,6 @@ fetch('/api/auth/public-settings').then(r => r.json()).then(d => {
 });
 
 const socket = io();
-
-// Live CTF Registration Logic
-document.getElementById('liveRegisterBtn').onclick = () => {
-  document.getElementById('liveRegisterModal').classList.remove('hidden');
-};
-
-document.getElementById('liveRegisterForm').addEventListener('submit', async (e) => {
-  e.preventDefault();
-  const fullName = document.getElementById('lrFullName').value;
-  const studentId = document.getElementById('lrStudentId').value;
-  const collegeId = document.getElementById('lrCollegeId').value;
-  const res = await fetch('/api/auth/live-register', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ fullName, studentId, collegeId })
-  });
-  if (res.ok) {
-    window.location.reload();
-  } else {
-    const data = await res.json();
-    document.getElementById('lrError').textContent = data.error || 'Registration failed.';
-    document.getElementById('lrError').classList.remove('hidden');
-  }
-});
-
-Promise.all([
-  fetch('/api/auth/me').then(r => r.json()),
-  fetch('/api/auth/public-settings').then(r => r.json())
-]).then(([me, settings]) => {
-  if (me.team && !me.team.is_registered) {
-    document.getElementById('liveRegisterBtn').classList.remove('hidden');
-  }
-});
 
 // Zen Mode Logic
 let zenMode = localStorage.getItem('zenMode') === 'true';
