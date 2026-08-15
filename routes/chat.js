@@ -132,6 +132,21 @@ module.exports = function (io) {
     }
   });
 
+  // Wipe messages for a specific team (Admin)
+  router.delete('/admin/messages/:teamId', async (req, res) => {
+    if (!req.session.isAdmin) {
+      return res.status(403).json({ error: 'Admin access required' });
+    }
+    try {
+      const targetTeamId = Number(req.params.teamId);
+      await db.prepare('DELETE FROM messages WHERE team_id = ?').run(targetTeamId);
+      res.json({ ok: true, message: 'Team chat wiped successfully' });
+    } catch (err) {
+      console.error('Error wiping team chat:', err);
+      res.status(500).json({ error: 'Failed to wipe team chat' });
+    }
+  });
+
   // Wipe all chats across all teams
   router.delete('/admin/wipe-all', async (req, res) => {
     if (!req.session.isAdmin) {

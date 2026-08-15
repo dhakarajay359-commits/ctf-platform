@@ -2158,7 +2158,7 @@ let allChatTeams = [];
 
 async function loadChatTeams() {
   try {
-    const res = await fetch('/api/admin/chat/teams');
+    const res = await fetch('/api/chat/admin/teams');
     allChatTeams = await res.json();
     renderChatTeamList(allChatTeams);
   } catch (err) {
@@ -2190,9 +2190,9 @@ function renderChatTeamList(teams) {
     const isSelected = activeChatTeamId && Number(activeChatTeamId) === Number(t.id);
     d.style.cssText = `padding: 10px 12px; cursor:pointer; border-bottom:1px solid var(--border-color); border-radius:4px; margin-bottom:2px; display:flex; justify-content:space-between; align-items:center; transition: background 0.2s; background: ${isSelected ? 'rgba(0,210,255,0.15)' : 'transparent'};`;
     
-    const countBadge = Number(t.msg_count) > 0 ? `<span style="background:var(--primary); color:#000; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px;">${t.msg_count}</span>` : '';
+    const countBadge = Number(t.message_count || t.msg_count) > 0 ? `<span style="background:var(--primary); color:#000; font-size:10px; font-weight:bold; padding:2px 6px; border-radius:10px;">${t.message_count || t.msg_count}</span>` : '';
     d.innerHTML = `
-      <div style="font-weight:${Number(t.msg_count) > 0 ? 'bold' : 'normal'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${escapeHtml(t.name)}</div>
+      <div style="font-weight:${Number(t.message_count || t.msg_count) > 0 ? 'bold' : 'normal'}; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${escapeHtml(t.name)}</div>
       <div>${countBadge}</div>
     `;
     d.onclick = () => {
@@ -2216,7 +2216,7 @@ async function openAdminChat(teamId, teamName) {
   input.focus();
   
   try {
-    const res = await fetch('/api/admin/chat/messages/' + teamId);
+    const res = await fetch('/api/chat/admin/messages/' + teamId);
     const msgs = await res.json();
     const box = document.getElementById('chatAdminMessages');
     box.innerHTML = '';
@@ -2230,10 +2230,33 @@ async function openAdminChat(teamId, teamName) {
   }
 }
 
+async function sendAdminChat() {
+  if (!activeChatTeamId) return;
+  const input = document.getElementById('chatAdminInput');
+  const text = input.value.trim();
+  if (!text) return;
+  input.value = '';
+
+  try {
+    const res = await fetch('/api/chat/admin-reply', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ teamId: activeChatTeamId, text })
+    });
+    if (res.ok) {
+      const msg = await res.json();
+      appendAdminChatMessage(msg);
+      loadChatTeams();
+    }
+  } catch (e) {
+    console.error('sendAdminChat error:', e);
+  }
+}
+
 async function wipeAdminChat(teamId) {
   if (!confirm('Are you sure you want to permanently wipe all chat messages for this team?')) return;
   try {
-    const res = await fetch('/api/admin/chat/messages/' + teamId, { method: 'DELETE' });
+    const res = await fetch('/api/chat/admin/messages/' + teamId, { method: 'DELETE' });
     if (res.ok) {
       document.getElementById('chatAdminMessages').innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">Chat messages wiped successfully.</div>';
       loadChatTeams();
@@ -2246,7 +2269,7 @@ async function wipeAdminChat(teamId) {
 async function wipeAllAdminChats() {
   if (!confirm('Are you sure you want to permanently wipe ALL chat messages from the entire platform? This frees database space.')) return;
   try {
-    const res = await fetch('/api/admin/chat/messages', { method: 'DELETE' });
+    const res = await fetch('/api/chat/admin/wipe-all', { method: 'DELETE' });
     if (res.ok) {
       document.getElementById('chatAdminMessages').innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">All chat messages have been wiped.</div>';
       loadChatTeams();
@@ -2278,7 +2301,7 @@ function appendAdminChatMessage(msg) {
   const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
   d.innerHTML = `
     <div style="font-size: 10px; opacity: 0.75; margin-bottom: 3px; font-family:var(--mono);">
-      ${isAdmin ? '🛡️ Admin' : '👥 Team'} ${timeStr ? `• ${timeStr}` : ''}
+      ${isAdmin ? '🛡️ Admin (You)' : '👥 Team'} ${timeStr ? `• ${timeStr}` : ''}
     </div>
     <div style="white-space: pre-wrap; word-break: break-word;">${escapeHtml(msg.text)}</div>
   `;
@@ -2444,145 +2467,6 @@ async function clearIdsLogs() {
   }
 }
 
-// ---------- Admin Support Chat ----------
-let activeChatTeamId = null;
-let allChatTeams = [];
-
-async function loadChatTeams() {
-  const listEl = document.getElementById('chatTeamList');
-  if (!listEl) return;
-  listEl.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:15px; font-size:12px;">Loading teams...</div>';
-
-  try {
-    const res = await fetch('/api/chat/admin/teams');
-    if (!res.ok) throw new Error('Failed to load chat teams');
-    allChatTeams = await res.json();
-    renderChatTeamsList();
-  } catch (err) {
-    console.error('Error loading chat teams:', err);
-    listEl.innerHTML = `<div style="color:#ff5252; text-align:center; padding:15px; font-size:12px;">Error: ${escapeHtml(err.message)}</div>`;
-  }
-}
-
-function filterChatTeams() {
-  renderChatTeamsList();
-}
-
-function renderChatTeamsList() {
-  const listEl = document.getElementById('chatTeamList');
-  if (!listEl) return;
-  const search = (document.getElementById('chatTeamSearch')?.value || '').toLowerCase().trim();
-  const filtered = allChatTeams.filter(t => (t.name || '').toLowerCase().includes(search));
-
-  if (filtered.length === 0) {
-    listEl.innerHTML = '<div style="color:var(--text-muted); text-align:center; padding:20px; font-size:12px;">No teams found</div>';
-    return;
-  }
-
-  listEl.innerHTML = filtered.map(t => {
-    const isSelected = activeChatTeamId === t.id;
-    const timeStr = t.last_time ? new Date(t.last_time).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-    const unreadCount = t.message_count || 0;
-
-    return `
-      <div onclick="selectChatTeam(${t.id}, '${escapeHtml(t.name)}')" style="padding:10px 12px; border-radius:6px; cursor:pointer; margin-bottom:4px; background:${isSelected ? 'rgba(0,210,255,0.15)' : 'rgba(255,255,255,0.02)'}; border:1px solid ${isSelected ? 'var(--primary)' : 'transparent'}; transition:all 0.2s;">
-        <div style="display:flex; justify-content:space-between; align-items:center;">
-          <strong style="font-size:13px; color:${isSelected ? 'var(--primary)' : '#f1f5f9'}; font-family:var(--mono);">${escapeHtml(t.name)}</strong>
-          ${unreadCount > 0 ? `<span style="font-size:10px; background:var(--primary); color:#000; font-weight:bold; padding:1px 6px; border-radius:10px; font-family:var(--mono);">${unreadCount}</span>` : ''}
-        </div>
-        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:4px; font-size:11px; color:var(--text-muted);">
-          <span style="overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:180px;">${t.last_message ? escapeHtml(t.last_message) : 'No messages yet'}</span>
-          <span style="font-size:10px; font-family:var(--mono);">${timeStr}</span>
-        </div>
-      </div>
-    `;
-  }).join('');
-}
-
-async function selectChatTeam(teamId, teamName) {
-  activeChatTeamId = teamId;
-  renderChatTeamsList();
-
-  const header = document.getElementById('chatAdminHeader');
-  const msgBox = document.getElementById('chatAdminMessages');
-  const input = document.getElementById('chatAdminInput');
-  const sendBtn = document.getElementById('chatAdminSendBtn');
-
-  if (header) header.innerHTML = `<span style="color:var(--primary); font-family:var(--mono);">💬 Chat with ${escapeHtml(teamName)}</span>`;
-  if (input) { input.disabled = false; input.focus(); }
-  if (sendBtn) sendBtn.disabled = false;
-
-  msgBox.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px; font-size:12px;">Loading chat messages...</div>';
-
-  try {
-    const res = await fetch(`/api/chat/admin/messages/${teamId}`);
-    if (!res.ok) throw new Error('Failed to load messages');
-    const messages = await res.json();
-    msgBox.innerHTML = '';
-    if (messages.length === 0) {
-      msgBox.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px; font-size:12px;">No messages in this chat. Type below to send a message.</div>';
-      return;
-    }
-    messages.forEach(appendAdminChatMessage);
-  } catch (err) {
-    console.error('Error loading team messages:', err);
-    msgBox.innerHTML = `<div style="color:#ff5252; text-align:center; margin-top:40px; font-size:12px;">Error: ${escapeHtml(err.message)}</div>`;
-  }
-}
-
-function appendAdminChatMessage(msg) {
-  const msgBox = document.getElementById('chatAdminMessages');
-  if (!msgBox) return;
-  const isFromAdmin = msg.is_from_admin === 1 || msg.is_from_admin === true;
-  const div = document.createElement('div');
-  div.style.cssText = `max-width:80%; padding:8px 12px; border-radius:6px; font-size:12px; line-height:1.4; ${isFromAdmin ? 'align-self:flex-end; background:var(--primary); color:#000; font-weight:500;' : 'align-self:flex-start; background:rgba(255,255,255,0.08); color:#f1f5f9;'}`;
-  const timeStr = msg.created_at ? new Date(msg.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
-
-  div.innerHTML = `
-    <div style="font-size:10px; opacity:0.7; margin-bottom:2px; font-family:var(--mono);">${isFromAdmin ? '🛡️ Admin (You)' : 'User'} • ${timeStr}</div>
-    <div style="white-space:pre-wrap; word-break:break-word;">${escapeHtml(msg.text)}</div>
-  `;
-  msgBox.appendChild(div);
-  msgBox.scrollTop = msgBox.scrollHeight;
-}
-
-async function sendAdminChat() {
-  if (!activeChatTeamId) return;
-  const input = document.getElementById('chatAdminInput');
-  const text = input.value.trim();
-  if (!text) return;
-  input.value = '';
-
-  try {
-    const res = await fetch('/api/chat/admin-reply', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ teamId: activeChatTeamId, text })
-    });
-    if (res.ok) {
-      const msg = await res.json();
-      appendAdminChatMessage(msg);
-      loadChatTeams();
-    }
-  } catch (e) {
-    console.error('Admin chat error:', e);
-  }
-}
-
-async function wipeAllAdminChats() {
-  if (!confirm('Are you sure you want to wipe ALL chat history across all teams?')) return;
-  try {
-    const res = await fetch('/api/chat/admin/wipe-all', { method: 'DELETE' });
-    if (res.ok) {
-      alert('All chat history wiped successfully.');
-      loadChatTeams();
-      const msgBox = document.getElementById('chatAdminMessages');
-      if (msgBox) msgBox.innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">Chat history wiped.</div>';
-    }
-  } catch (err) {
-    alert('Error wiping chats: ' + err.message);
-  }
-}
 // ---------- Remediation Reports Management ----------
 let allRemediationsData = [];
 let remediationActiveFilter = 'all';
