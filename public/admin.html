@@ -289,6 +289,18 @@
             <button class="btn-ghost btn-sm" onclick="loadAdminRemediations()">🔄 Refresh Reports</button>
           </div>
 
+          <!-- Filter & Search Controls -->
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; gap:10px; flex-wrap:wrap;">
+            <div style="display:flex; gap:6px; flex-wrap:wrap;" id="remediationFilterGroup">
+              <button type="button" class="btn-ghost btn-sm rem-filter-btn active" data-filter="all" onclick="setRemediationFilter('all')">All Reports (<span id="remCountAll">0</span>)</button>
+              <button type="button" class="btn-ghost btn-sm rem-filter-btn" data-filter="live" onclick="setRemediationFilter('live')" style="border-color:#00e5ff; color:#00e5ff;">🎯 Live CTF (<span id="remCountLive">0</span>)</button>
+              <button type="button" class="btn-ghost btn-sm rem-filter-btn" data-filter="practice" onclick="setRemediationFilter('practice')" style="border-color:#ffb74d; color:#ffb74d;">🧪 Practice Arena (<span id="remCountPractice">0</span>)</button>
+            </div>
+            <div style="min-width:240px; flex:1; max-width:350px;">
+              <input type="text" id="remediationSearchInput" placeholder="🔍 Search team, challenge, or text..." oninput="renderRemediationsTable()" style="margin:0; padding:6px 12px; font-size:12px; width:100%; box-sizing:border-box;">
+            </div>
+          </div>
+
           <div class="panel">
             <div id="remediationsTableContainer" style="overflow-x:auto;">
               <div style="color:var(--text-muted); font-style:italic; padding:15px 0;">Loading remediation reports...</div>
@@ -2440,10 +2452,172 @@ function sendAdminChat() {
   fbSocket.emit('chat:send', { text, toTeamId: activeChatTeamId });
   input.value = '';
 }
-document.getElementById('chatAdminSendBtn').onclick = sendAdminChat;
-document.getElementById('chatAdminInput').addEventListener('keypress', e => {
-  if (e.key === 'Enter') sendAdminChat();
-});
+// ---------- Remediation Reports Management ----------
+let allRemediationsData = [];
+let remediationActiveFilter = 'all';
+
+function setRemediationFilter(filter) {
+  remediationActiveFilter = filter;
+  document.querySelectorAll('.rem-filter-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.filter === filter);
+  });
+  renderRemediationsTable();
+}
+
+async function loadAdminRemediations() {
+  const container = document.getElementById('remediationsTableContainer');
+  if (!container) return;
+  container.innerHTML = '<div style="color:var(--text-muted); font-style:italic; padding:15px 0;">Loading remediation reports...</div>';
+
+  try {
+    const res = await fetch('/api/admin/remediations');
+    if (!res.ok) throw new Error('Failed to fetch remediations');
+    allRemediationsData = await res.json();
+    updateRemediationCounts();
+    renderRemediationsTable();
+  } catch (err) {
+    console.error('Error loading remediations:', err);
+    container.innerHTML = `<div class="alert alert-error">Error loading remediation reports: ${escapeHtml(err.message)}</div>`;
+  }
+}
+
+function updateRemediationCounts() {
+  const allCount = allRemediationsData.length;
+  const liveCount = allRemediationsData.filter(r => !r.is_practice).length;
+  const practiceCount = allRemediationsData.filter(r => !!r.is_practice).length;
+
+  const elAll = document.getElementById('remCountAll');
+  const elLive = document.getElementById('remCountLive');
+  const elPractice = document.getElementById('remCountPractice');
+
+  if (elAll) elAll.textContent = allCount;
+  if (elLive) elLive.textContent = liveCount;
+  if (elPractice) elPractice.textContent = practiceCount;
+}
+
+function renderRemediationsTable() {
+  const container = document.getElementById('remediationsTableContainer');
+  if (!container) return;
+
+  const searchVal = (document.getElementById('remediationSearchInput')?.value || '').toLowerCase().trim();
+
+  let filtered = allRemediationsData.filter(r => {
+    if (remediationActiveFilter === 'live' && r.is_practice) return false;
+    if (remediationActiveFilter === 'practice' && !r.is_practice) return false;
+    if (searchVal) {
+      const matchTeam = (r.team_name || '').toLowerCase().includes(searchVal);
+      const matchChal = (r.challenge_title || '').toLowerCase().includes(searchVal);
+      const matchText = (r.remediation_text || '').toLowerCase().includes(searchVal);
+      return matchTeam || matchChal || matchText;
+    }
+    return true;
+  });
+
+  if (filtered.length === 0) {
+    container.innerHTML = `<div style="color:var(--text-muted); font-style:italic; padding:20px; text-align:center;">No remediation reports found for the selected filter.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <table style="width:100%; border-collapse:collapse; text-align:left; font-size:12px;">
+      <thead>
+        <tr style="border-bottom:1px solid var(--border-color); color:var(--text-muted); font-family:var(--mono);">
+          <th style="padding:10px 8px;">Scope</th>
+          <th style="padding:10px 8px;">Team</th>
+          <th style="padding:10px 8px;">Target Challenge</th>
+          <th style="padding:10px 8px;">3-Sentence Remediation Advisory</th>
+          <th style="padding:10px 8px;">Grading Guide Reference</th>
+          <th style="padding:10px 8px;">Status / Points</th>
+          <th style="padding:10px 8px; text-align:right;">Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        ${filtered.map(r => {
+          const isPractice = !!r.is_practice;
+          const typeBadge = isPractice
+            ? `<span style="background:rgba(255,183,77,0.15); color:#ffb74d; border:1px solid rgba(255,183,77,0.4); padding:2px 6px; border-radius:4px; font-family:var(--mono); font-size:10px; font-weight:bold;">🧪 PRACTICE</span>`
+            : `<span style="background:rgba(0,229,255,0.15); color:#00e5ff; border:1px solid rgba(0,229,255,0.4); padding:2px 6px; border-radius:4px; font-family:var(--mono); font-size:10px; font-weight:bold;">🎯 LIVE CTF</span>`;
+
+          const statusBadge = r.status === 'approved'
+            ? `<span style="color:#00ff88; font-family:var(--mono); font-weight:bold;">✓ Approved (+${r.awarded_points || 25} pts)</span>`
+            : r.status === 'rejected'
+            ? `<span style="color:#ff5252; font-family:var(--mono); font-weight:bold;">✕ Rejected (0 pts)</span>`
+            : `<span style="color:#ffb74d; font-family:var(--mono); font-weight:bold;">⏳ Pending Review</span>`;
+
+          const submittedTime = r.submitted_at ? new Date(r.submitted_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '';
+
+          return `
+            <tr style="border-bottom:1px solid rgba(255,255,255,0.05); vertical-align:top;">
+              <td style="padding:10px 8px; white-space:nowrap;">
+                ${typeBadge}
+                <div style="font-size:10px; color:var(--text-muted); font-family:var(--mono); margin-top:4px;">${submittedTime}</div>
+              </td>
+              <td style="padding:10px 8px; font-weight:bold; color:var(--primary); font-family:var(--mono); white-space:nowrap;">
+                ${escapeHtml(r.team_name)}
+              </td>
+              <td style="padding:10px 8px; white-space:nowrap;">
+                <div style="font-weight:bold; color:#f1f5f9;">${escapeHtml(r.challenge_title)}</div>
+                <div style="font-size:11px; color:var(--text-muted); font-family:var(--mono);">${r.challenge_points || 0} pts base</div>
+              </td>
+              <td style="padding:10px 8px; max-width:320px;">
+                <div style="background:rgba(0,0,0,0.4); border:1px solid rgba(255,255,255,0.08); border-radius:4px; padding:8px; line-height:1.5; color:#cbd5e1; font-family:var(--sans);">
+                  ${escapeHtml(r.remediation_text)}
+                </div>
+              </td>
+              <td style="padding:10px 8px; max-width:260px;">
+                <div style="font-size:11px; color:var(--text-muted); font-style:italic; line-height:1.4;">
+                  ${r.remediation_guide ? escapeHtml(r.remediation_guide) : 'No reference guide supplied.'}
+                </div>
+              </td>
+              <td style="padding:10px 8px; white-space:nowrap;">
+                ${statusBadge}
+                <div style="display:flex; align-items:center; gap:4px; margin-top:6px;">
+                  <input type="number" id="pts-input-${r.id}" value="${r.awarded_points !== undefined ? r.awarded_points : 25}" style="width:55px; padding:2px 4px; font-size:11px; font-family:var(--mono); margin:0;" title="Points to award">
+                  <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">pts</span>
+                </div>
+              </td>
+              <td style="padding:10px 8px; text-align:right; white-space:nowrap;">
+                <div style="display:flex; gap:4px; justify-content:flex-end;">
+                  <button type="button" class="btn-primary btn-sm" onclick="reviewRemediation(${r.id}, 'approved')" style="font-size:11px; padding:3px 8px;">✓ Approve</button>
+                  <button type="button" class="btn-ghost btn-sm" onclick="reviewRemediation(${r.id}, 'rejected')" style="font-size:11px; padding:3px 8px; color:#ffb74d; border-color:rgba(255,183,77,0.4);">✕ Reject</button>
+                  <button type="button" class="btn-ghost btn-sm" onclick="deleteRemediation(${r.id})" style="font-size:11px; padding:3px 6px; color:#ff5252; border-color:rgba(255,82,82,0.4);" title="Delete submission">🗑️</button>
+                </div>
+              </td>
+            </tr>
+          `;
+        }).join('')}
+      </tbody>
+    </table>
+  `;
+}
+
+async function reviewRemediation(id, status) {
+  const ptsInput = document.getElementById(`pts-input-${id}`);
+  const awarded_points = ptsInput ? Number(ptsInput.value) : (status === 'approved' ? 25 : 0);
+
+  try {
+    const res = await fetch(`/api/admin/remediations/${id}/review`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ status, awarded_points })
+    });
+    if (!res.ok) throw new Error('Failed to review remediation');
+    await loadAdminRemediations();
+  } catch (err) {
+    alert('Error updating remediation: ' + err.message);
+  }
+}
+
+async function deleteRemediation(id) {
+  if (!confirm('Are you sure you want to delete this remediation report submission?')) return;
+  try {
+    const res = await fetch(`/api/admin/remediations/${id}`, { method: 'DELETE' });
+    if (!res.ok) throw new Error('Failed to delete remediation');
+    await loadAdminRemediations();
+  } catch (err) {
+    alert('Error deleting remediation: ' + err.message);
+  }
+}
 
 // ---------- Timer ----------
 document.getElementById('startTimerBtn').onclick = async () => {

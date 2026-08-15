@@ -308,7 +308,7 @@ module.exports = function (io) {
   router.get('/remediations', async (req, res) => {
     const rows = await db.prepare(`
       SELECT r.id, r.team_id, r.challenge_id, r.remediation_text, r.status, r.awarded_points, r.submitted_at,
-             t.name as team_name, c.title as challenge_title, c.points as challenge_points, c.remediation_guide
+             t.name as team_name, c.title as challenge_title, c.points as challenge_points, c.remediation_guide, c.is_practice
       FROM remediations r
       JOIN teams t ON t.id = r.team_id
       JOIN challenges c ON c.id = r.challenge_id
