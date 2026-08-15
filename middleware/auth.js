@@ -8,6 +8,12 @@ async function requireTeam(req, res, next) {
   try {
     const team = await db.prepare('SELECT is_banned FROM teams WHERE id = ?').get(req.session.teamId);
     if (!team || team.is_banned === 1) {
+      const tId = req.session.teamId;
+      if (tId) {
+        try {
+          await db.prepare('DELETE FROM messages WHERE team_id = ?').run(tId);
+        } catch (e) {}
+      }
       req.session.destroy();
       return res.status(403).json({ error: 'This account has been banned from the CTF.' });
     }

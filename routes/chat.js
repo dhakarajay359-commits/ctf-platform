@@ -18,5 +18,19 @@ module.exports = function (io) {
       });
     }
   });
+
+  // Wipe chat history for the logged-in team
+  router.delete('/messages', requireTeam, async (req, res) => {
+    try {
+      await db.prepare('DELETE FROM messages WHERE team_id = ?').run(req.session.teamId);
+      res.json({ ok: true, message: 'Chat history wiped successfully' });
+    } catch (err) {
+      console.error(err);
+      res.status(500).json({
+        error: 'Failed to wipe messages'
+      });
+    }
+  });
+
   return router;
 };

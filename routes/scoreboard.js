@@ -29,6 +29,16 @@ async function computeScoreboard(mode = 'live') {
   const hintMap = new Map(hintCosts.map(r => [r.team_id, r.spent]));
   const kothPoints = isPracticeMode ? [] : await db.prepare('SELECT team_id, points FROM koth_points').all();
   const kothMap = new Map(kothPoints.map(r => [r.team_id, r.points]));
+  
+  const remPoints = await db.prepare(`
+    SELECT r.team_id AS team_id, SUM(r.awarded_points) AS bonus
+    FROM remediations r
+    JOIN challenges c ON c.id = r.challenge_id
+    WHERE c.is_practice = ? AND r.status = 'approved'
+    GROUP BY r.team_id
+  `).all(practiceFilter);
+  const remMap = new Map(remPoints.map(r => [r.team_id, r.bonus]));
+
   const solveCounts = await db.prepare(`
     SELECT s.team_id, COUNT(*) AS n 
     FROM solves s JOIN challenges c ON c.id = s.challenge_id
@@ -62,7 +72,8 @@ async function computeScoreboard(mode = 'live') {
     const earned = solveMap.get(t.id)?.earned || 0;
     const spent = hintMap.get(t.id) || 0;
     const koth = kothMap.get(t.id) || 0;
-    const score = earned - spent + koth;
+    const remBonus = remMap.get(t.id) || 0;
+    const score = earned - spent + koth + remBonus;
 
     // Compute badges
     const badges = [];

@@ -16,28 +16,6 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server);
 const PORT = process.env.PORT || 3000;
-global.activeSandboxes = new Map();
-const {
-  createProxyMiddleware
-} = require('http-proxy-middleware');
-const sandboxProxy = createProxyMiddleware({
-  target: 'http://127.0.0.1',
-  changeOrigin: true,
-  router: function (req) {
-    const cId = req.params.containerId || req.url.split('/')[2];
-    if (global.activeSandboxes && global.activeSandboxes.has(cId)) {
-      return `http://127.0.0.1:\${global.activeSandboxes.get(cId).port}`;
-    }
-    return null;
-  },
-  pathRewrite: function (path, req) {
-    const cId = req.params.containerId || req.url.split('/')[2];
-    return path.replace(`/sandbox/\${cId}`, '');
-  }
-});
-app.use('/sandbox/:containerId', sandboxProxy);
-app.use(express.json());
-
 const pgSession = require('connect-pg-simple')(session);
 
 // Easter Egg Header
@@ -74,7 +52,29 @@ passport.deserializeUser(async (id, done) => {
   done(null, team);
 });
 require('./passport')(passport, db);
+
 const blueTeam = require('./middleware/blue_team')(io);
+
+const {
+  createProxyMiddleware
+} = require('http-proxy-middleware');
+const sandboxProxy = createProxyMiddleware({
+  target: 'http://127.0.0.1',
+  changeOrigin: true,
+  router: function (req) {
+    const cId = req.params.containerId || req.url.split('/')[2];
+    if (global.activeSandboxes && global.activeSandboxes.has(cId)) {
+      return `http://127.0.0.1:${global.activeSandboxes.get(cId).port}`;
+    }
+    return null;
+  },
+  pathRewrite: function (path, req) {
+    const cId = req.params.containerId || req.url.split('/')[2];
+    return path.replace(`/sandbox/${cId}`, '');
+  }
+});
+app.use('/sandbox/:containerId', blueTeam, sandboxProxy);
+app.use(express.json());
 app.use('/api', blueTeam);
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/admin', require('./routes/admin')(io));

@@ -12,6 +12,10 @@ const discord = require('../utils/discord');
 const {
   exec
 } = require('child_process');
+const {
+  generateDynamicFlag,
+  verifyFlag
+} = require('../utils/flags');
 module.exports = function (io) {
   const router = express.Router();
   const bruteForceTracker = {};
@@ -173,7 +177,8 @@ module.exports = function (io) {
 
     const challenges = await db.prepare(`
       SELECT c.id, c.title, c.category_id, cat.name AS category, c.description,
-             c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice
+             c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice,
+             c.corporate_context, c.target_asset, c.ticket_number, c.target_artifacts
           FROM challenges c
           LEFT JOIN categories cat ON cat.id = c.category_id
           WHERE c.visible = 1
@@ -198,14 +203,23 @@ module.exports = function (io) {
       return acc;
     }, {}) : {};
     const revealedHintIds = teamId ? new Set((await db.prepare('SELECT hint_id FROM hint_reveals WHERE team_id = ?').all(teamId)).map(r => r.hint_id)) : new Set();
-    const hintsByChallenge = await db.prepare('SELECT * FROM hints ORDER BY order_index ASC').all();
+    const hintsByChallenge = await db.prepare('SELECT * FROM hints ORDER BY order_index ASC, id ASC').all();
     const result = visibleChallenges.map(c => {
-      const hints = hintsByChallenge.filter(h => h.challenge_id === c.id).map(h => ({
-        id: h.id,
-        cost: h.cost,
-        revealed: revealedHintIds.has(h.id),
-        text: revealedHintIds.has(h.id) ? h.text : null
-      }));
+      const chalHints = hintsByChallenge.filter(h => h.challenge_id === c.id);
+      const hints = chalHints.map((h, idx) => {
+        const level = idx + 1;
+        let title = "Level 1: Architectural Context";
+        if (level === 2) title = "Level 2: Methodology Pointer";
+        else if (level >= 3) title = "Level 3: Payload Syntax Guidance";
+        return {
+          id: h.id,
+          level,
+          title,
+          cost: h.cost,
+          revealed: revealedHintIds.has(h.id),
+          text: revealedHintIds.has(h.id) ? h.text : null
+        };
+      });
       return {
         ...c,
         solved: solvedIds.has(c.id),
@@ -307,13 +321,35 @@ module.exports = function (io) {
         });
       }
     }
-    const correct = bcrypt.compareSync((flag || '').trim(), challenge.flag_hash);
-    if (!correct) {
+    const verification = verifyFlag(flag, challenge, teamId);
+    if (!verification.valid) {
       await db.prepare('INSERT INTO wrong_attempts (team_id, challenge_id) VALUES (?, ?)').run(teamId, challengeId);
       io.emit('heat:update', {
         type: 'attempt',
         challengeId
       });
+
+      // Anti-Cheat Discord Flag Sharing Alert
+      if (verification.flagSharingDetected) {
+        const sourceTeam = await db.prepare('SELECT name FROM teams WHERE id = ?').get(verification.sourceTeamId);
+        const sourceName = sourceTeam ? sourceTeam.name : `Team #${verification.sourceTeamId}`;
+        
+        io.to('admin_room').emit('admin:alert', {
+          type: 'FLAG_SHARING_DETECTED',
+          message: `🚨 ANTI-CHEAT: Team "${req.session.teamName}" submitted a dynamic flag generated for "${sourceName}" on "${challenge.title}"! Cross-team flag sharing suspected.`,
+          timestamp: new Date().toISOString()
+        });
+
+        try {
+          await db.prepare('INSERT INTO ids_logs (team_id, trigger_type, description) VALUES (?, ?, ?)')
+            .run(teamId, 'FLAG_SHARING', `Submitted dynamic flag belonging to ${sourceName}`);
+        } catch(e) {}
+
+        return res.status(200).json({
+          correct: false,
+          error: 'Flag validation failed: Dynamic flag signature matches another team session. Cross-team flag sharing is prohibited.'
+        });
+      }
 
       // Brute-force detection
       const nowTs = Date.now();
@@ -398,27 +434,35 @@ module.exports = function (io) {
     });
   });
 
-  // Deploy Docker Sandbox
+  // Deploy On-Demand Multi-Session Isolated Docker Sandbox
   router.post('/:id/deploy', requireTeam, checkCTFStarted, async (req, res) => {
     const challengeId = Number(req.params.id);
+    const teamId = req.session.teamId;
     const challenge = await db.prepare('SELECT * FROM challenges WHERE id = ? AND visible = 1').get(challengeId);
     if (!challenge) return res.status(404).json({
       error: 'Challenge not found.'
     });
-    if (challenge.difficulty !== 'hard') {
-      return res.status(400).json({
-        error: 'Only hard challenges have isolated sandboxes.'
-      });
-    }
+
     const image = challenge.docker_image;
     if (!image) {
       return res.status(400).json({
-        error: 'This challenge does not use a Docker sandbox. Please read the description carefully to solve it.'
+        error: 'This challenge does not use an isolated Docker container instance.'
       });
     }
 
-    // Attempt to spawn docker
-    exec(`docker run -d -P ${image}`, (error, stdout, stderr) => {
+    // Terminate and clean up any prior active container for this team on this challenge
+    for (const [cId, meta] of global.activeSandboxes.entries()) {
+      if (meta.teamId === teamId && meta.challengeId === challengeId) {
+        exec(`docker rm -f ${cId}`, () => {});
+        global.activeSandboxes.delete(cId);
+      }
+    }
+
+    // Generate unique dynamic flag based on user's session/team ID
+    const dynamicFlag = generateDynamicFlag(challengeId, teamId);
+
+    // Attempt to spawn isolated docker container with injected dynamic flag
+    exec(`docker run -d -P -e FLAG="${dynamicFlag}" -e CTF_FLAG="${dynamicFlag}" -e TEAM_ID="${teamId}" ${image}`, (error, stdout, stderr) => {
       if (error) {
         console.error('Docker run error:', error.message, stderr);
         if (error.message.includes('not recognized') || error.message.includes('not found') || error.message.includes('ENOENT') || stderr && stderr.includes('not recognized')) {
@@ -441,11 +485,15 @@ module.exports = function (io) {
           const port = out.split(':')[1].trim();
           global.activeSandboxes.set(containerId, {
             port,
+            teamId,
+            challengeId,
+            dynamicFlag,
             expiresAt: Date.now() + 30 * 60000
           });
           res.json({
             proxyUrl: `/sandbox/${containerId}`,
-            containerId
+            containerId,
+            message: 'Isolated container instance deployed with dynamic session flag.'
           });
         } catch (e) {
           res.status(500).json({
@@ -561,5 +609,95 @@ module.exports = function (io) {
       ok: true
     });
   });
+
+  // ---- Blue Team Post-Mortem & Defense Perspective ----
+  router.get('/:id/postmortem', requireTeam, async (req, res) => {
+    const challengeId = Number(req.params.id);
+    const teamId = req.session.teamId;
+
+    const challenge = await db.prepare('SELECT id, title, category_id, corporate_context, target_asset, ticket_number, blue_team_postmortem, remediation_bonus_points, remediation_guide FROM challenges WHERE id = ?').get(challengeId);
+    if (!challenge) return res.status(404).json({ error: 'Challenge not found.' });
+
+    // Verify team solved the challenge
+    const solve = await db.prepare('SELECT solved_at FROM solves WHERE team_id = ? AND challenge_id = ?').get(teamId, challengeId);
+    if (!solve) {
+      return res.status(403).json({
+        unlocked: false,
+        error: 'Defense Post-Mortem unlocks once you capture the flag and compromise the target.'
+      });
+    }
+
+    const existingRemediation = await db.prepare('SELECT * FROM remediations WHERE team_id = ? AND challenge_id = ?').get(teamId, challengeId);
+
+    // If custom postmortem is not set in DB, generate a realistic Sysmon + PCAP telemetry packet
+    let postmortemData = challenge.blue_team_postmortem;
+    if (!postmortemData) {
+      const asset = challenge.target_asset || 'corp-internal-dev.local [192.168.10.50]';
+      const rawDate = solve.solved_at ? new Date(solve.solved_at).toLocaleTimeString() : '14:22:05';
+      postmortemData = JSON.stringify({
+        summary: `Incident Post-Mortem Analysis for ${challenge.title}. Red Team operative exploited target asset ${asset}. Blue Team telemetry reconstructed the initial execution chain and network flow.`,
+        sysmonLogs: [
+          { eventId: 1, event: "Process Creation", image: "/usr/bin/node /app/server.js", cmdline: "node /app/server.js --stage=production", user: "www-data", time: rawDate },
+          { eventId: 3, event: "Network Connection", srcIp: "198.51.100.44", srcPort: "49152", destIp: "192.168.10.50", destPort: "8080", protocol: "TCP", time: rawDate },
+          { eventId: 11, event: "File Create / Flag Access", path: "/var/secret/flag.txt", hash: "SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", time: rawDate }
+        ],
+        pcapStream: `GET /api/exploit HTTP/1.1\r\nHost: ${asset.split(' ')[0]}\r\nUser-Agent: Mozilla/5.0 (Operative Security Probe)\r\nAuthorization: Bearer <Dynamic_Session_Token>\r\nAccept: */*\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: application/json\r\n[+] Payload executed. Memory offset verified. Dynamic Flag Decrypted.`,
+        detectionRule: `alert tcp $EXTERNAL_NET any -> $HOME_NET 8080 (msg:"[BLUE TEAM] Suspicious Exploit Chain on ${asset.split(' ')[0]}"; flow:to_server,established; content:"FLAG{"; classtype:trojan-activity; sid:2026001; rev:1;)`
+      });
+    }
+
+    res.json({
+      unlocked: true,
+      challengeTitle: challenge.title,
+      solvedAt: solve.solved_at,
+      postmortem: postmortemData,
+      remediation: existingRemediation || null,
+      bonusPoints: challenge.remediation_bonus_points !== undefined ? challenge.remediation_bonus_points : 25
+    });
+  });
+
+  // Submit Remediation Fix Task
+  router.post('/:id/remediation', requireTeam, checkCTFStarted, async (req, res) => {
+    const challengeId = Number(req.params.id);
+    const teamId = req.session.teamId;
+    const { remediation_text } = req.body;
+
+    const challenge = await db.prepare('SELECT id, title, is_practice, remediation_bonus_points FROM challenges WHERE id = ?').get(challengeId);
+    if (!challenge) return res.status(404).json({ error: 'Challenge not found.' });
+
+    const solve = await db.prepare('SELECT 1 FROM solves WHERE team_id = ? AND challenge_id = ?').get(teamId, challengeId);
+    if (!solve) {
+      return res.status(403).json({ error: 'You must capture the flag before submitting a remediation report.' });
+    }
+
+    if (!remediation_text || remediation_text.trim().length < 30) {
+      return res.status(400).json({
+        error: 'Remediation report too brief. Please provide at least 3 concise sentences describing the root cause, immediate mitigation, and long-term defensive control.'
+      });
+    }
+
+    const bonusPoints = challenge.remediation_bonus_points !== undefined ? challenge.remediation_bonus_points : 25;
+
+    await db.prepare(`
+      INSERT INTO remediations (team_id, challenge_id, remediation_text, status, awarded_points, submitted_at)
+      VALUES (?, ?, ?, 'approved', ?, CURRENT_TIMESTAMP)
+      ON CONFLICT (team_id, challenge_id)
+      DO UPDATE SET remediation_text = EXCLUDED.remediation_text, submitted_at = CURRENT_TIMESTAMP
+    `).run(teamId, challengeId, remediation_text.trim(), bonusPoints);
+
+    io.emit('activity', {
+      team: req.session.teamName,
+      challenge: `${challenge.title} [Remediation Fix Approved +${bonusPoints} pts]`
+    });
+
+    broadcastScoreboard(io);
+
+    res.json({
+      success: true,
+      awardedPoints: bonusPoints,
+      message: `Remediation report accepted! +${bonusPoints} bonus points added to your score.`
+    });
+  });
+
   return router;
 };

@@ -294,6 +294,20 @@
 
 
 
+  <div id="idsQuarantineBanner" class="challenge-card hard hidden" style="text-align:left; font-size: 14px; margin-bottom: 20px; min-height: auto; padding: 14px 20px; border: 1px solid #ff3366; background: rgba(255, 51, 102, 0.12); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px; box-shadow: 0 0 20px rgba(255, 51, 102, 0.25);">
+    <div style="display:flex; align-items:center; gap:12px;">
+      <span style="font-size:24px;">🚨</span>
+      <div>
+        <strong style="color:#ff3366; font-family:var(--mono); letter-spacing:0.5px;">BLUE TEAM IDS / WAF DEFENSE TRIGGERED</strong>
+        <div id="idsQuarantineReason" style="color:#fff; font-size:13px; margin-top:2px;">Target instance quarantined for 5 minutes due to noisy scanner activity. Rate limit your tools and practice stealth evasion!</div>
+      </div>
+    </div>
+    <div style="text-align:right;">
+      <div style="font-size:10px; color:var(--text-muted); text-transform:uppercase; font-family:var(--mono);">Cooldown Remaining</div>
+      <div id="idsQuarantineCountdown" style="font-family:var(--mono); color:#00e5ff; font-weight:bold; font-size:18px;">05:00</div>
+    </div>
+  </div>
+
   <div id="anomalyBanner" class="challenge-card hard hidden" style="text-align:center; font-size: 16px; margin-bottom: 24px; min-height: auto; padding: 12px 16px; display: flex; justify-content: center; align-items: center; flex-wrap: wrap; gap: 8px;">
     <strong style="color:var(--danger); font-family:var(--mono); letter-spacing:1px; text-shadow: 0 0 10px rgba(255, 51, 102, 0.5); display: flex; align-items: center; gap: 4px;">
       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10.29 3.86L1.82 18a2 2 0 0 0 1.71 3h16.94a2 2 0 0 0 1.71-3L13.71 3.86a2 2 0 0 0-3.42 0z"></path><line x1="12" y1="9" x2="12" y2="13"></line><line x1="12" y1="17" x2="12.01" y2="17"></line></svg>
@@ -412,7 +426,38 @@
 
 <!-- Challenge Modal -->
 <div class="modal-backdrop hidden" id="modalBackdrop">
-  <div class="modal" id="modalContent"></div>
+  <div class="modal" id="modalContent" style="max-width: 720px;"></div>
+</div>
+
+<!-- Network Topology Modal -->
+<div class="modal-backdrop hidden" id="topologyModal" style="z-index: 10001;">
+  <div class="modal challenge-card" style="max-width: 800px; padding: 25px; border-color: var(--primary);">
+    <button class="modal-close" onclick="document.getElementById('topologyModal').classList.add('hidden')">×</button>
+    <div class="eyebrow" style="color:var(--primary);">INFRASTRUCTURE RECONNAISSANCE</div>
+    <h2 id="topoTitle" style="margin: 4px 0 15px 0;">Corporate Network Topology</h2>
+    <p style="color:var(--text-muted); font-size:13px; margin-bottom:15px;">
+      Simulated perimeter architecture & subnet routing map for target environment <strong id="topoTargetName" style="color:#00e5ff;"></strong>.
+    </p>
+    <div id="topoDiagramContainer" style="background: rgba(5,8,15,0.9); border: 1px solid var(--border-color); border-radius: 8px; padding: 20px; overflow-x: auto; text-align: center;">
+      <!-- SVG Network Map will be generated dynamically -->
+    </div>
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-top:15px;">
+      <span style="font-size:11px; font-family:var(--mono); color:var(--text-muted);">ENCRYPTION: TLS 1.3 • SEGMENT: DMZ-VLAN-40</span>
+      <button class="btn-ghost btn-sm" onclick="downloadTopologySvg()" style="border-color:var(--primary); font-size:11px;">📥 Export Topology Map</button>
+    </div>
+  </div>
+</div>
+
+<!-- Corporate Email & OSINT Dossier Modal -->
+<div class="modal-backdrop hidden" id="emailModal" style="z-index: 10001;">
+  <div class="modal challenge-card" style="max-width: 750px; padding: 25px; border-color: #ffb74d;">
+    <button class="modal-close" onclick="document.getElementById('emailModal').classList.add('hidden')">×</button>
+    <div class="eyebrow" style="color:#ffb74d;">INTERCEPTED CORPORATE COMMUNICATIONS</div>
+    <h2 id="emailModalTitle" style="margin: 4px 0 15px 0;">Internal Incident Triage Thread</h2>
+    <div id="emailThreadContainer" style="display:flex; flex-direction:column; gap:12px; max-height:480px; overflow-y:auto;">
+      <!-- Emails will be rendered dynamically -->
+    </div>
+  </div>
 </div>
 
 <script src="/socket.io/socket.io.js"></script>
@@ -826,67 +871,220 @@ function escapeHtml(s) {
   return d.innerHTML;
 }
 
+function getChallengeCorporateContext(c) {
+  const cat = c.category || 'Security';
+  const idNum = c.id || 1;
+  const ticket = c.ticket_number || `INC-${10000 + (idNum * 37) % 89999}`;
+  
+  let defaultAsset = 'corp-internal-dev.local [192.168.10.50]';
+  if (cat.includes('Crypto')) defaultAsset = 'secops-vault-02.internal.net [10.10.40.15]';
+  else if (cat.includes('Forensics')) defaultAsset = 'ws-finance-exec04.corp.local [Memory Image]';
+  else if (cat.includes('Pwn') || cat.includes('Reverse')) defaultAsset = 'srv-gateway-bin.prod.local [172.16.2.80]';
+  else if (cat.includes('OSINT')) defaultAsset = 'omnicorp-global.org [Public Perimeter]';
+  
+  const asset = c.target_asset || defaultAsset;
+  
+  let defaultContext = `**Engagement Scope & Client Triage Brief:**\n\nOur security consulting firm has been retained by **OmniCorp Global** under Scope of Work **#${ticket}**. Internal monitoring systems flagged abnormal behaviors, undocumented endpoints, and potential credential leakage associated with target asset **\`${asset}\`**.\n\n**Mission Objectives:**\n- Assess target service within designated scope parameters.\n- Identify misconfigurations, data leaks, or vulnerability primitives without disrupting active corporate workflows.\n- Extract cryptographic proof of impact (the flag) to validate the security exposure.`;
+
+  const contextText = c.corporate_context || defaultContext;
+
+  return {
+    ticket,
+    asset,
+    contextText
+  };
+}
+
 function openChallenge(id) {
   const c = challenges.find(x => x.id === id);
   if (!c) return;
   
-  const hintsHtml = (c.hints || []).map(h => `
-    <div class="hint-box">
-      <div>Hint (-${h.cost} pts)${h.revealed ? '' : ` — <a href="#" class="reveal-link" data-hint-id="${h.id}">decrypt</a>`}</div>
-      ${h.revealed ? `<div class="hint-text">${escapeHtml(h.text)}</div>` : ''}
-    </div>
-  `).join('');
+  const dossier = getChallengeCorporateContext(c);
 
-    let lockHtml = '';
-    if (currentTeam && currentTeam.operative_type === 'Syndicate' && Array.isArray(currentTeam.roster) && currentTeam.roster.length > 0) {
-      if (c.claimed_by) {
-        lockHtml = `
-          <div style="background: rgba(255, 51, 102, 0.08); border: 1px dashed var(--danger); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
-            <div style="font-family: var(--mono); color: var(--danger); font-size: 13px; margin-bottom: 8px;">🎯 Target Assigned to: <strong>${escapeHtml(c.claimed_by)}</strong></div>
-            <button class="btn-ghost btn-sm unlock-btn" data-id="${c.id}" style="font-size: 11px; color: var(--danger); border-color: var(--danger); padding: 4px 10px;">Release Assignment</button>
-          </div>
-        `;
-      } else {
-        const rosterOpts = currentTeam.roster.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
-        lockHtml = `
-          <div style="background: rgba(0, 210, 255, 0.05); border: 1px dashed var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
-            <div style="font-family: var(--mono); color: var(--text-muted); font-size: 12px;">👥 Assign Challenge to Teammate:</div>
-            <div style="display: flex; gap: 8px; align-items: center;">
-              <select id="lockAliasSelect" style="background: #111; color: var(--primary); border: 1px solid var(--border-color); font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 4px;">
-                ${rosterOpts}
-              </select>
-              <button class="btn-ghost btn-sm lock-btn" data-id="${c.id}" style="font-size: 11px; border-color: var(--primary); padding: 4px 10px;">Assign</button>
-            </div>
-          </div>
-        `;
+  let artifacts = {};
+  try {
+    artifacts = c.target_artifacts ? (typeof c.target_artifacts === 'string' ? JSON.parse(c.target_artifacts) : c.target_artifacts) : {};
+  } catch(e) { artifacts = {}; }
+
+  const hintsList = c.hints || [];
+  let hintsHtml = '';
+  if (hintsList.length > 0) {
+    const hintItemsHtml = hintsList.map((h, idx) => {
+      const level = h.level || (idx + 1);
+      const isLevel1 = level === 1;
+      const isLevel2 = level === 2;
+      const isLevel3 = level >= 3;
+
+      let levelBadgeColor = '#00ff88';
+      let levelBg = 'rgba(0,255,136,0.06)';
+      let levelBorder = 'rgba(0,255,136,0.3)';
+      let levelLabel = 'LEVEL 1: ARCHITECTURAL CONTEXT';
+      let costText = 'FREE // 0 PTS';
+      let unlockBtnText = '🔓 Reveal Free Context';
+
+      if (isLevel2) {
+        levelBadgeColor = '#ffb74d';
+        levelBg = 'rgba(255,183,77,0.06)';
+        levelBorder = 'rgba(255,183,77,0.3)';
+        levelLabel = 'LEVEL 2: METHODOLOGY POINTER';
+        costText = `-${h.cost || 15} PTS DEDUCTION`;
+        unlockBtnText = `⚡ Unlock Methodology (-${h.cost || 15} pts)`;
+      } else if (isLevel3) {
+        levelBadgeColor = '#ff3366';
+        levelBg = 'rgba(255,51,102,0.06)';
+        levelBorder = 'rgba(255,51,102,0.3)';
+        levelLabel = 'LEVEL 3: DIRECT PAYLOAD SYNTAX GUIDANCE';
+        costText = `-${h.cost || 50} PTS MAJOR DEDUCTION`;
+        unlockBtnText = `🚨 Unlock Payload Guidance (-${h.cost || 50} pts)`;
       }
-    }
 
-    document.getElementById('modalContent').innerHTML = `
-      <button class="modal-close" id="closeModal">×</button>
-      <div class="eyebrow">${escapeHtml(c.category || 'Uncategorized')}</div>
-      <h2 style="margin-top:6px;">${escapeHtml(c.title)}</h2>
-      <div class="markdown-body" style="margin-bottom: 20px;">${marked.parse(c.description || '')}</div>
-      ${lockHtml}
-      ${c.link ? `<p><a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Access Target →</a></p>` : ''}
+      return `
+        <div class="progressive-hint-tier" style="background:${levelBg}; border:1px solid ${levelBorder}; border-radius:6px; padding:12px; margin-bottom:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:${h.revealed ? '8px' : '0'}; flex-wrap:wrap; gap:6px;">
+            <div style="display:flex; align-items:center; gap:8px;">
+              <span style="font-family:var(--mono); font-weight:bold; font-size:11px; color:${levelBadgeColor}; letter-spacing:0.5px;">${levelLabel}</span>
+              <span style="font-family:var(--mono); font-size:10px; background:rgba(0,0,0,0.4); color:${levelBadgeColor}; padding:1px 6px; border-radius:3px; border:1px solid ${levelBorder};">${costText}</span>
+            </div>
+            ${h.revealed 
+              ? `<span style="font-family:var(--mono); font-size:10px; color:#00ff88; font-weight:bold;">✓ DECRYPTED</span>`
+              : `<button type="button" class="btn-ghost btn-sm progressive-reveal-btn" data-hint-id="${h.id}" data-cost="${h.cost}" data-level="${level}" style="font-size:11px; padding:3px 10px; border-color:${levelBadgeColor}; color:${levelBadgeColor};">${unlockBtnText}</button>`
+            }
+          </div>
+          ${h.revealed ? `
+            <div style="font-size:12px; color:#f1f5f9; line-height:1.5; font-family:var(--mono); background:rgba(0,0,0,0.5); padding:10px; border-radius:4px; border:1px solid rgba(255,255,255,0.06); white-space:pre-wrap;">${escapeHtml(h.text)}</div>
+          ` : ''}
+        </div>
+      `;
+    }).join('');
+
+    hintsHtml = `
+      <div id="smart-hints-box" style="background:rgba(10,14,22,0.6); border:1px solid var(--border-color); border-radius:8px; padding:14px; margin-top:16px; margin-bottom:16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px;">
+          <span style="font-family:var(--mono); font-size:12px; font-weight:bold; color:var(--primary); display:flex; align-items:center; gap:6px;">
+            <span>💡</span> SMART PROGRESSIVE HINTS SYSTEM
+          </span>
+          <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">3-Tier Scaled Dynamic Deductions</span>
+        </div>
+        ${hintItemsHtml}
+      </div>
+    `;
+  }
+
+  let lockHtml = '';
+  if (currentTeam && currentTeam.operative_type === 'Syndicate' && Array.isArray(currentTeam.roster) && currentTeam.roster.length > 0) {
+    if (c.claimed_by) {
+      lockHtml = `
+        <div style="background: rgba(255, 51, 102, 0.08); border: 1px dashed var(--danger); padding: 10px; border-radius: 8px; margin-bottom: 20px; text-align: center;">
+          <div style="font-family: var(--mono); color: var(--danger); font-size: 13px; margin-bottom: 8px;">🎯 Target Assigned to: <strong>${escapeHtml(c.claimed_by)}</strong></div>
+          <button class="btn-ghost btn-sm unlock-btn" data-id="${c.id}" style="font-size: 11px; color: var(--danger); border-color: var(--danger); padding: 4px 10px;">Release Assignment</button>
+        </div>
+      `;
+    } else {
+      const rosterOpts = currentTeam.roster.map(r => `<option value="${escapeHtml(r)}">${escapeHtml(r)}</option>`).join('');
+      lockHtml = `
+        <div style="background: rgba(0, 210, 255, 0.05); border: 1px dashed var(--border-color); padding: 10px; border-radius: 8px; margin-bottom: 20px; display: flex; align-items: center; justify-content: space-between; gap: 10px;">
+          <div style="font-family: var(--mono); color: var(--text-muted); font-size: 12px;">👥 Assign Challenge to Teammate:</div>
+          <div style="display: flex; gap: 8px; align-items: center;">
+            <select id="lockAliasSelect" style="background: #111; color: var(--primary); border: 1px solid var(--border-color); font-family: var(--mono); font-size: 12px; padding: 4px 8px; border-radius: 4px;">
+              ${rosterOpts}
+            </select>
+            <button class="btn-ghost btn-sm lock-btn" data-id="${c.id}" style="font-size: 11px; border-color: var(--primary); padding: 4px 10px;">Assign</button>
+          </div>
+        </div>
+      `;
+    }
+  }
+
+  document.getElementById('modalContent').innerHTML = `
+    <button class="modal-close" id="closeModal">×</button>
+    <div class="eyebrow" style="display:flex; justify-content:space-between; align-items:center;">
+      <span>${escapeHtml(c.category || 'Uncategorized')} • ${c.points} PTS</span>
+      <span style="font-family:var(--mono); color:#ffb74d; font-size:11px; font-weight:bold;">TICKET #${escapeHtml(dossier.ticket)}</span>
+    </div>
+    <h2 style="margin-top:4px; margin-bottom:14px;">${escapeHtml(c.title)}</h2>
+
+    <!-- Corporate Scope of Work Dossier -->
+    <div style="background: rgba(0, 210, 255, 0.03); border: 1px solid rgba(0, 210, 255, 0.25); border-radius: 8px; padding: 14px 16px; margin-bottom: 18px; box-shadow: inset 0 0 15px rgba(0, 210, 255, 0.02);">
+      <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0, 210, 255, 0.12); padding-bottom:6px; margin-bottom:10px; font-family:var(--mono); font-size:11px; flex-wrap:wrap; gap:6px;">
+        <span style="color:var(--primary); font-weight:bold; display:flex; align-items:center; gap:6px;">
+          <span>🏢</span> SCOPE OF WORK // CLIENT INCIDENT BRIEF
+        </span>
+        <span style="color:var(--text-muted);">TARGET: <strong style="color:#00e5ff;">${escapeHtml(dossier.asset)}</strong></span>
+      </div>
+      <div class="markdown-body" style="font-size:13px; color:#cbd5e1; line-height:1.6; margin-bottom:12px;">
+        ${marked.parse(dossier.contextText)}
+      </div>
+      <div style="display:flex; gap:8px; flex-wrap:wrap; border-top:1px dashed rgba(255,255,255,0.08); padding-top:10px;">
+        <button type="button" class="btn-ghost btn-sm" onclick="openTopologyModal('${c.id}')" style="font-size:11px; border-color:var(--primary); color:var(--primary); padding:3px 10px; cursor:pointer;">
+          🗺️ View Network Topology Map
+        </button>
+        <button type="button" class="btn-ghost btn-sm" onclick="openEmailModal('${c.id}')" style="font-size:11px; border-color:#ffb74d; color:#ffb74d; padding:3px 10px; cursor:pointer;">
+          📧 Intercepted Emails & Logs
+        </button>
+        ${artifacts.osintPackageUrl ? `
+          <a href="${escapeHtml(artifacts.osintPackageUrl)}" download class="btn-ghost btn-sm" style="font-size:11px; border-color:#00ff88; color:#00ff88; padding:3px 10px; text-decoration:none; display:inline-flex; align-items:center;">
+            📁 Download OSINT Forensic Package
+          </a>
+        ` : ''}
+      </div>
+    </div>
+
+    <div class="markdown-body" style="margin-bottom: 20px;">
+      <h4 style="color:#fff; margin:0 0 8px 0; font-size:12px; font-family:var(--mono); text-transform:uppercase; letter-spacing:1px; opacity:0.8;">[Technical Assessment Notes]</h4>
+      ${marked.parse(c.description || '')}
+    </div>
+
+    ${lockHtml}
+    ${c.link ? `<p><a href="${escapeHtml(c.link)}" target="_blank" rel="noopener">Access Target Asset →</a></p>` : ''}
     ${c.docker_image && !c.solved ? `
-      <div id="sandbox-area" style="background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); padding: 15px; border-radius: 8px; margin-bottom: 20px;">
-        <h4 style="margin:0 0 10px 0; color:var(--primary); font-family:var(--mono);">[DOCKER SANDBOX]</h4>
-        <p style="font-size:13px; color:var(--text-muted); margin-bottom:15px;">This challenge requires an isolated environment. Deploy a personal container instance to proceed.</p>
-        <button id="deployBtn" class="btn-primary" style="width:100%; background:transparent; border:1px solid var(--primary); color:var(--primary);">Deploy Instance</button>
-        <div id="deployStatus" class="hidden" style="margin-top:15px; font-family:var(--mono); font-size:12px;">
-           <div>Provisioning Container...</div>
-           <div style="width:100%; background:#222; height:4px; margin-top:5px; border-radius:2px; overflow:hidden;">
-             <div id="deployProgress" style="width:0%; background:var(--primary); height:100%; transition: width 0.1s linear;"></div>
+      <div id="sandbox-area" style="background: rgba(0,0,0,0.5); border: 1px solid var(--primary); padding: 16px; border-radius: 8px; margin-bottom: 20px; box-shadow: 0 0 15px rgba(0,210,255,0.05);">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <h4 style="margin:0; color:var(--primary); font-family:var(--mono); font-size:13px;">[MULTI-SESSION ON-DEMAND SANDBOX]</h4>
+          <span style="font-size:10px; font-family:var(--mono); background:rgba(0,255,136,0.1); color:#00ff88; border:1px solid rgba(0,255,136,0.3); padding:2px 6px; border-radius:4px;">ISOLATED MICRO-INSTANCE</span>
+        </div>
+        <p style="font-size:12px; color:var(--text-muted); margin-bottom:12px; line-height:1.5;">
+          Spins up a private isolated environment. The flag is <strong>dynamically injected</strong> based on your unique session signature to prevent instance contamination and flag sharing.
+        </p>
+        <button id="deployBtn" class="btn-primary" style="width:100%; font-family:var(--mono); font-size:12px; padding:8px 14px;">⚡ Launch Personal Instance</button>
+        <div id="deployStatus" class="hidden" style="margin-top:12px; font-family:var(--mono); font-size:12px;">
+           <div style="color:var(--primary);">Provisioning Isolated Container & Injecting Dynamic Flag...</div>
+           <div style="width:100%; background:#222; height:4px; margin-top:6px; border-radius:2px; overflow:hidden;">
+             <div id="deployProgress" style="width:0%; background:linear-gradient(90deg, var(--primary), #00ff88); height:100%; transition: width 0.1s linear;"></div>
            </div>
         </div>
-        <div id="deployResult" class="hidden" style="margin-top:15px; font-family:var(--mono); color:var(--success); background:rgba(0,255,102,0.1); border:1px dashed var(--success); padding:10px;"></div>
+        <div id="deployResult" class="hidden" style="margin-top:12px; font-family:var(--mono); font-size:12px; border-radius:6px; padding:12px;"></div>
       </div>
     ` : ''}
     ${hintsHtml}
     <div id="submitArea" style="margin-top:24px;">
       ${c.solved
-        ? `<div class="alert alert-success" style="justify-content:center; font-family:var(--mono);">✓ TARGET COMPROMISED</div>`
+        ? `
+          <div class="alert alert-success" style="justify-content:center; font-family:var(--mono); margin-bottom:15px; font-weight:bold; letter-spacing:1px;">
+            ✓ TARGET COMPROMISED // ACCESS GRANTED
+          </div>
+
+          <!-- Interactive Post-Mortem & Defense Perspective Section -->
+          <div id="postMortemContainer" style="background: rgba(10,14,22,0.95); border: 1px solid rgba(0,229,255,0.4); border-radius: 8px; padding: 16px; margin-top: 15px; box-shadow: 0 0 20px rgba(0,210,255,0.06);">
+            <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid rgba(0,210,255,0.2); padding-bottom:10px; margin-bottom:14px; flex-wrap:wrap; gap:8px;">
+              <div style="display:flex; align-items:center; gap:8px;">
+                <span style="font-size:16px;">🛡️</span>
+                <span style="font-family:var(--mono); font-weight:bold; font-size:12px; color:var(--primary); letter-spacing:1px;">DEFENSE PERSPECTIVE // INCIDENT POST-MORTEM</span>
+              </div>
+              <div style="display:flex; gap:6px;">
+                <button type="button" class="btn-ghost btn-sm pm-tab-btn" id="pmTabLogsBtn" onclick="switchPostMortemTab('logs')" style="font-size:11px; padding:3px 10px; border-color:var(--primary); color:var(--primary); background:rgba(0,210,255,0.1);">📊 Sysmon & PCAP Telemetry</button>
+                <button type="button" class="btn-ghost btn-sm pm-tab-btn" id="pmTabRemBtn" onclick="switchPostMortemTab('remediation')" style="font-size:11px; padding:3px 10px; border-color:#ffb74d; color:#ffb74d;">📝 Remediation Advisory Task</button>
+              </div>
+            </div>
+
+            <div id="pmTabLogsContent">
+              <div style="color:var(--text-muted); font-size:12px; text-align:center; padding:15px; font-family:var(--mono);">Reconstructing incident telemetry...</div>
+            </div>
+
+            <div id="pmTabRemContent" class="hidden">
+              <div style="color:var(--text-muted); font-size:12px; text-align:center; padding:15px; font-family:var(--mono);">Loading remediation task...</div>
+            </div>
+          </div>
+        `
         : `
           <label for="flagInput">Inject Flag</label>
           <input id="flagInput" placeholder="flag{...}" style="font-family:var(--mono);">
@@ -897,13 +1095,25 @@ function openChallenge(id) {
     </div>
   `;
 
+  if (c.solved) {
+    loadPostMortem(id);
+  }
+
   document.getElementById('modalBackdrop').classList.remove('hidden');
   document.getElementById('closeModal').onclick = closeModal;
 
-  document.querySelectorAll('.reveal-link').forEach(link => {
+  document.querySelectorAll('.progressive-reveal-btn, .reveal-link').forEach(link => {
     link.onclick = async (e) => {
       e.preventDefault();
       const hintId = link.dataset.hintId;
+      const cost = Number(link.dataset.cost) || 0;
+      const level = link.dataset.level || '1';
+
+      if (cost > 0) {
+        const confirmed = confirm(`⚠️ Dynamic Point Deduction Warning:\n\nUnlocking Level ${level} will deduct ${cost} points from your team's total score.\n\nAre you sure you want to reveal this hint?`);
+        if (!confirmed) return;
+      }
+
       await fetch(`/api/challenges/hints/${hintId}/reveal`, { method: 'POST' });
       await loadChallenges();
       openChallenge(id);
@@ -954,12 +1164,21 @@ function openChallenge(id) {
         if (res.ok) {
           resEl.style.color = 'var(--success)';
           resEl.style.borderColor = 'var(--success)';
-          resEl.style.background = 'rgba(0,255,102,0.1)';
-          resEl.innerHTML = `Instance Deployed.<br/><br/>Target URL: <a href="${data.proxyUrl}" target="_blank" style="color:var(--primary);">${data.proxyUrl}</a><br/>Destroys in: 30:00`;
+          resEl.style.background = 'rgba(0,255,102,0.08)';
+          resEl.style.border = '1px dashed var(--success)';
+          resEl.innerHTML = `
+            <div style="font-weight:bold; margin-bottom:6px;">✓ Isolated Instance Ready</div>
+            <div style="margin-bottom:6px;">Target URL: <a href="${data.proxyUrl}" target="_blank" style="color:var(--primary); font-weight:bold;">${window.location.origin + data.proxyUrl}</a></div>
+            <div style="color:var(--text-muted); font-size:11px; margin-bottom:8px;">🔒 Dynamic Flag Injected: Session-isolated. Auto-terminates in 30:00.</div>
+            <button class="btn-ghost btn-sm" onclick="openChallenge(${id})" style="border-color:var(--primary); font-size:11px; width:100%;">🔄 Reset / Re-deploy Instance</button>
+          `;
+          deployBtn.textContent = '🔄 Re-deploy Fresh Instance';
+          deployBtn.disabled = false;
         } else {
           resEl.style.color = 'var(--danger)';
           resEl.style.borderColor = 'var(--danger)';
           resEl.style.background = 'rgba(255,51,102,0.1)';
+          resEl.style.border = '1px dashed var(--danger)';
           resEl.innerHTML = `Deployment Failed:<br/><br/><b>${data.error || 'Unknown error.'}</b>`;
           deployBtn.disabled = false;
         }
@@ -969,6 +1188,7 @@ function openChallenge(id) {
         resEl.style.color = 'var(--danger)';
         resEl.style.borderColor = 'var(--danger)';
         resEl.style.background = 'rgba(255,51,102,0.1)';
+        resEl.style.border = '1px dashed var(--danger)';
         resEl.innerHTML = `Network error contacting server.`;
         deployBtn.disabled = false;
       }
@@ -1015,6 +1235,482 @@ function closeModal() { document.getElementById('modalBackdrop').classList.add('
 document.getElementById('modalBackdrop').addEventListener('click', (e) => { if (e.target.id === 'modalBackdrop') closeModal(); });
 
 // Profile Modal / Fingerprint Chart
+// ---------- Realistic Context Modals (Topology & Internal Communications) ----------
+let currentTopologySvg = '';
+
+function openTopologyModal(title, targetAsset) {
+  document.getElementById('topoTitle').textContent = `Network Topology: ${title}`;
+  document.getElementById('topoTargetName').textContent = targetAsset;
+
+  const svg = `
+    <svg viewBox="0 0 740 320" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; max-height:300px; font-family:'JetBrains Mono',monospace;">
+      <defs>
+        <linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00d2ff" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#00ff88" stop-opacity="0.8"/>
+        </linearGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+      </defs>
+
+      <!-- Connection Lines -->
+      <path d="M 110 160 L 230 160" stroke="rgba(0,229,255,0.4)" stroke-width="2" stroke-dasharray="4,4"/>
+      <path d="M 230 160 L 350 160" stroke="#ff3366" stroke-width="2"/>
+      <path d="M 350 160 L 480 110" stroke="rgba(0,229,255,0.7)" stroke-width="2"/>
+      <path d="M 350 160 L 480 210" stroke="rgba(255,183,77,0.5)" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <path d="M 480 110 L 640 110" stroke="#00ff88" stroke-width="2"/>
+      <path d="M 480 210 L 640 210" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="2,2"/>
+
+      <!-- Node 1: Attacker Machine -->
+      <g transform="translate(40, 115)">
+        <rect width="130" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(0,229,255,0.6)" stroke-width="1.5"/>
+        <text x="65" y="24" fill="#00e5ff" font-size="11" font-weight="bold" text-anchor="middle">OPERATIVE NODE</text>
+        <text x="65" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">198.51.100.44</text>
+        <rect x="25" y="56" width="80" height="18" rx="4" fill="rgba(0,229,255,0.15)"/>
+        <text x="65" y="69" fill="#00e5ff" font-size="9" text-anchor="middle">ATTACK VM</text>
+      </g>
+
+      <!-- Node 2: Perimeter WAF / IDS -->
+      <g transform="translate(200, 115)">
+        <rect width="110" height="90" rx="8" fill="rgba(255,51,102,0.08)" stroke="#ff3366" stroke-width="1.5" filter="url(#glow)"/>
+        <text x="55" y="24" fill="#ff3366" font-size="11" font-weight="bold" text-anchor="middle">BORDER WAF / IDS</text>
+        <text x="55" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">ACTIVE SOC</text>
+        <rect x="15" y="56" width="80" height="18" rx="4" fill="rgba(255,51,102,0.2)"/>
+        <text x="55" y="69" fill="#ff3366" font-size="9" text-anchor="middle">RATE FILTERING</text>
+      </g>
+
+      <!-- Node 3: DMZ Proxy -->
+      <g transform="translate(340, 115)">
+        <rect width="110" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(0,229,255,0.4)" stroke-width="1.5"/>
+        <text x="55" y="24" fill="#f1f5f9" font-size="11" font-weight="bold" text-anchor="middle">DMZ GATEWAY</text>
+        <text x="55" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">192.168.10.5</text>
+        <rect x="15" y="56" width="80" height="18" rx="4" fill="rgba(255,255,255,0.08)"/>
+        <text x="55" y="69" fill="#cbd5e1" font-size="9" text-anchor="middle">REVERSE PROXY</text>
+      </g>
+
+      <!-- Node 4: Target Server (Highlight) -->
+      <g transform="translate(470, 65)">
+        <rect width="150" height="90" rx="8" fill="rgba(0,255,136,0.08)" stroke="#00ff88" stroke-width="2" filter="url(#glow)"/>
+        <text x="75" y="24" fill="#00ff88" font-size="11" font-weight="bold" text-anchor="middle">🎯 TARGET ASSET</text>
+        <text x="75" y="42" fill="#fff" font-size="10" text-anchor="middle">${escapeHtml(targetAsset.split(' ')[0])}</text>
+        <rect x="25" y="56" width="100" height="18" rx="4" fill="rgba(0,255,136,0.2)"/>
+        <text x="75" y="69" fill="#00ff88" font-size="9" text-anchor="middle">PORTS 80/443/8080</text>
+      </g>
+
+      <!-- Node 5: Internal Corporate Core -->
+      <g transform="translate(470, 165)">
+        <rect width="150" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(255,183,77,0.4)" stroke-width="1.5"/>
+        <text x="75" y="24" fill="#ffb74d" font-size="11" font-weight="bold" text-anchor="middle">INTERNAL CORP DB</text>
+        <text x="75" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">10.0.4.0/24 (LDAP/SQL)</text>
+        <rect x="25" y="56" width="100" height="18" rx="4" fill="rgba(255,183,77,0.15)"/>
+        <text x="75" y="69" fill="#ffb74d" font-size="9" text-anchor="middle">RESTRICTED BACKEND</text>
+      </g>
+    </svg>
+  `;
+
+function openTopologyModal(id) {
+  const c = challenges.find(x => x.id == id) || {};
+  const dossier = getChallengeCorporateContext(c);
+  const title = c.title || 'Corporate Target';
+  const targetAsset = dossier.asset;
+
+  let artifacts = {};
+  try {
+    artifacts = c.target_artifacts ? (typeof c.target_artifacts === 'string' ? JSON.parse(c.target_artifacts) : c.target_artifacts) : {};
+  } catch(e) { artifacts = {}; }
+
+  document.getElementById('topoTitle').textContent = `Network Topology: ${title}`;
+  document.getElementById('topoTargetName').textContent = targetAsset;
+
+  let customDiagramHtml = '';
+  if (artifacts.topologyUrl) {
+    customDiagramHtml = `
+      <div style="margin-bottom:15px; border-radius:6px; overflow:hidden; border:1px solid var(--border-color); background:rgba(0,0,0,0.5); padding:10px;">
+        <div style="font-size:11px; font-family:var(--mono); color:var(--primary); margin-bottom:6px;">[PRIMARY ARCHITECTURE SCHEMATIC]</div>
+        <img src="${escapeHtml(artifacts.topologyUrl)}" alt="Custom Topology Map" style="max-width:100%; height:auto; display:block; margin:0 auto; border-radius:4px;">
+      </div>
+    `;
+  }
+
+  const svg = `
+    <svg viewBox="0 0 740 320" xmlns="http://www.w3.org/2000/svg" style="width:100%; height:auto; max-height:300px; font-family:'JetBrains Mono',monospace;">
+      <defs>
+        <linearGradient id="cyberGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+          <stop offset="0%" stop-color="#00d2ff" stop-opacity="0.8"/>
+          <stop offset="100%" stop-color="#00ff88" stop-opacity="0.8"/>
+        </linearGradient>
+        <filter id="glow" x="-20%" y="-20%" width="140%" height="140%">
+          <feGaussianBlur stdDeviation="3" result="blur"/>
+          <feComposite in="SourceGraphic" in2="blur" operator="over"/>
+        </filter>
+      </defs>
+
+      <!-- Connection Lines -->
+      <path d="M 110 160 L 230 160" stroke="rgba(0,229,255,0.4)" stroke-width="2" stroke-dasharray="4,4"/>
+      <path d="M 230 160 L 350 160" stroke="#ff3366" stroke-width="2"/>
+      <path d="M 350 160 L 480 110" stroke="rgba(0,229,255,0.7)" stroke-width="2"/>
+      <path d="M 350 160 L 480 210" stroke="rgba(255,183,77,0.5)" stroke-width="1.5" stroke-dasharray="4,4"/>
+      <path d="M 480 110 L 640 110" stroke="#00ff88" stroke-width="2"/>
+      <path d="M 480 210 L 640 210" stroke="rgba(255,255,255,0.2)" stroke-width="1" stroke-dasharray="2,2"/>
+
+      <!-- Node 1: Attacker Machine -->
+      <g transform="translate(40, 115)">
+        <rect width="130" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(0,229,255,0.6)" stroke-width="1.5"/>
+        <text x="65" y="24" fill="#00e5ff" font-size="11" font-weight="bold" text-anchor="middle">OPERATIVE NODE</text>
+        <text x="65" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">198.51.100.44</text>
+        <rect x="25" y="56" width="80" height="18" rx="4" fill="rgba(0,229,255,0.15)"/>
+        <text x="65" y="69" fill="#00e5ff" font-size="9" text-anchor="middle">ATTACK VM</text>
+      </g>
+
+      <!-- Node 2: Perimeter WAF / IDS -->
+      <g transform="translate(200, 115)">
+        <rect width="110" height="90" rx="8" fill="rgba(255,51,102,0.08)" stroke="#ff3366" stroke-width="1.5" filter="url(#glow)"/>
+        <text x="55" y="24" fill="#ff3366" font-size="11" font-weight="bold" text-anchor="middle">BORDER WAF / IDS</text>
+        <text x="55" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">ACTIVE SOC</text>
+        <rect x="15" y="56" width="80" height="18" rx="4" fill="rgba(255,51,102,0.2)"/>
+        <text x="55" y="69" fill="#ff3366" font-size="9" text-anchor="middle">RATE FILTERING</text>
+      </g>
+
+      <!-- Node 3: DMZ Proxy -->
+      <g transform="translate(340, 115)">
+        <rect width="110" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(0,229,255,0.4)" stroke-width="1.5"/>
+        <text x="55" y="24" fill="#f1f5f9" font-size="11" font-weight="bold" text-anchor="middle">DMZ GATEWAY</text>
+        <text x="55" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">192.168.10.5</text>
+        <rect x="15" y="56" width="80" height="18" rx="4" fill="rgba(255,255,255,0.08)"/>
+        <text x="55" y="69" fill="#cbd5e1" font-size="9" text-anchor="middle">REVERSE PROXY</text>
+      </g>
+
+      <!-- Node 4: Target Server (Highlight) -->
+      <g transform="translate(470, 65)">
+        <rect width="150" height="90" rx="8" fill="rgba(0,255,136,0.08)" stroke="#00ff88" stroke-width="2" filter="url(#glow)"/>
+        <text x="75" y="24" fill="#00ff88" font-size="11" font-weight="bold" text-anchor="middle">🎯 TARGET ASSET</text>
+        <text x="75" y="42" fill="#fff" font-size="10" text-anchor="middle">${escapeHtml(targetAsset.split(' ')[0])}</text>
+        <rect x="25" y="56" width="100" height="18" rx="4" fill="rgba(0,255,136,0.2)"/>
+        <text x="75" y="69" fill="#00ff88" font-size="9" text-anchor="middle">PORTS 80/443/8080</text>
+      </g>
+
+      <!-- Node 5: Internal Corporate Core -->
+      <g transform="translate(470, 165)">
+        <rect width="150" height="90" rx="8" fill="rgba(14,18,27,0.9)" stroke="rgba(255,183,77,0.4)" stroke-width="1.5"/>
+        <text x="75" y="24" fill="#ffb74d" font-size="11" font-weight="bold" text-anchor="middle">INTERNAL CORP DB</text>
+        <text x="75" y="42" fill="#94a3b8" font-size="10" text-anchor="middle">10.0.4.0/24 (LDAP/SQL)</text>
+        <rect x="25" y="56" width="100" height="18" rx="4" fill="rgba(255,183,77,0.15)"/>
+        <text x="75" y="69" fill="#ffb74d" font-size="9" text-anchor="middle">RESTRICTED BACKEND</text>
+      </g>
+    </svg>
+  `;
+
+  currentTopologySvg = svg;
+  document.getElementById('topoDiagramContainer').innerHTML = customDiagramHtml + svg;
+  document.getElementById('topologyModal').classList.remove('hidden');
+}
+
+function downloadTopologySvg() {
+  const blob = new Blob([currentTopologySvg], { type: 'image/svg+xml' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'network_topology_map.svg';
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
+function openEmailModal(id) {
+  const c = challenges.find(x => x.id == id) || {};
+  const dossier = getChallengeCorporateContext(c);
+  const ticketNum = dossier.ticket;
+  const targetAsset = dossier.asset;
+
+  let artifacts = {};
+  try {
+    artifacts = c.target_artifacts ? (typeof c.target_artifacts === 'string' ? JSON.parse(c.target_artifacts) : c.target_artifacts) : {};
+  } catch(e) { artifacts = {}; }
+
+  document.getElementById('emailModalTitle').textContent = `Incident Thread // ${ticketNum}`;
+  const container = document.getElementById('emailThreadContainer');
+
+  if (Array.isArray(artifacts.emails) && artifacts.emails.length > 0) {
+    container.innerHTML = artifacts.emails.map((em, idx) => `
+      <div style="background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px; font-family:var(--mono); font-size:11px;">
+          <div>
+            <div><strong style="color:var(--primary);">FROM:</strong> ${escapeHtml(em.from || 'soc@corp.local')}</div>
+            <div><strong style="color:#cbd5e1;">TO:</strong> ${escapeHtml(em.to || 'auditor@secops.net')}</div>
+            <div><strong style="color:#ffb74d;">SUBJECT:</strong> ${escapeHtml(em.subject || 'Incident Log')}</div>
+          </div>
+          <div style="color:var(--text-muted); text-align:right;">Message #${idx + 1}</div>
+        </div>
+        <div style="font-size:13px; color:#e2e8f0; line-height:1.6; white-space: pre-line;">
+          ${escapeHtml(em.body || '')}
+        </div>
+      </div>
+    `).join('');
+  } else {
+    container.innerHTML = `
+      <!-- Email 1 -->
+      <div style="background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px; font-family:var(--mono); font-size:11px;">
+          <div>
+            <div><strong style="color:var(--primary);">FROM:</strong> marcus.vance@omnicorp-defense.com (Head of SecOps)</div>
+            <div><strong style="color:#cbd5e1;">TO:</strong> security-consultants@external-audit.com, devops-oncall@corp-internal-dev.local</div>
+            <div><strong style="color:#ffb74d;">SUBJECT:</strong> [URGENT SCOPE] External Pentest Authorization for ${escapeHtml(targetAsset)}</div>
+          </div>
+          <div style="color:var(--text-muted); text-align:right;">Today at 08:34 AM</div>
+        </div>
+        <div style="font-size:13px; color:#e2e8f0; line-height:1.6;">
+          Team,<br><br>
+          Following yesterday's executive review, we have formally authorized your team to perform a targeted security audit on <code>${escapeHtml(targetAsset)}</code> under Scope of Work <strong>${escapeHtml(ticketNum)}</strong>.<br><br>
+          Our internal telemetry reported anomalous process spawning and suspicious outbound beacon attempts. Please verify if the exposed services have unauthenticated entrypoints or remote code execution risks.<br><br>
+          <em>Rule of Engagement:</em> Stay within scope. The perimeter Blue Team WAF/IDS is active and will throttle noisy thread floods.
+        </div>
+      </div>
+
+      <!-- Email 2 -->
+      <div style="background: rgba(15,23,42,0.8); border: 1px solid var(--border-color); border-radius: 8px; padding: 14px;">
+        <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:8px; border-bottom:1px solid rgba(255,255,255,0.06); padding-bottom:8px; font-family:var(--mono); font-size:11px;">
+          <div>
+            <div><strong style="color:var(--primary);">FROM:</strong> sarah.chen@corp-internal-dev.local (Lead Infrastructure Engineer)</div>
+            <div><strong style="color:#cbd5e1;">TO:</strong> marcus.vance@omnicorp-defense.com</div>
+            <div><strong style="color:#ffb74d;">SUBJECT:</strong> Re: [URGENT SCOPE] System Specifications and Build Notes</div>
+          </div>
+          <div style="color:var(--text-muted); text-align:right;">Today at 09:12 AM</div>
+        </div>
+        <div style="font-size:13px; color:#e2e8f0; line-height:1.6;">
+          Marcus,<br><br>
+          I reviewed the staging node. The build was deployed using our latest container configuration. Here are the asset details for the auditing team:<br>
+          • Hostname: <code>${escapeHtml(targetAsset.split(' ')[0])}</code><br>
+          • Subnet: <code>192.168.10.0/24 (DMZ Segment)</code><br>
+          • Active Services: Web Dashboard, Serialized Profile Endpoints, Legacy Crypto RPC<br><br>
+          Let's hope the testers find any vulnerabilities before an adversary does.
+        </div>
+      </div>
+    `;
+  }
+
+  document.getElementById('emailModal').classList.remove('hidden');
+}
+
+// ---------- Interactive Post-Mortem & Defense Perspective ----------
+let currentPostMortemData = null;
+
+async function loadPostMortem(challengeId) {
+  try {
+    const res = await fetch(`/api/challenges/${challengeId}/postmortem`);
+    const data = await res.json();
+    if (!data.unlocked) return;
+    currentPostMortemData = data;
+
+    let parsedPm = {};
+    try {
+      parsedPm = typeof data.postmortem === 'string' ? JSON.parse(data.postmortem) : data.postmortem;
+    } catch(e) {
+      parsedPm = { summary: data.postmortem };
+    }
+
+    const logsContainer = document.getElementById('pmTabLogsContent');
+    if (logsContainer) {
+      const sysmonLogs = parsedPm.sysmonLogs || [];
+      const logsHtml = sysmonLogs.map(log => `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.06); font-family:var(--mono); font-size:11px;">
+          <td style="padding:6px 8px; color:var(--primary); font-weight:bold;">Event ${log.eventId}</td>
+          <td style="padding:6px 8px; color:#fff;">${escapeHtml(log.event)}</td>
+          <td style="padding:6px 8px; color:#cbd5e1; font-size:10px;">${escapeHtml(log.cmdline || log.path || log.protocol || '—')}</td>
+          <td style="padding:6px 8px; color:#ffb74d;">${escapeHtml(log.time || '14:22')}</td>
+        </tr>
+      `).join('');
+
+      logsContainer.innerHTML = `
+        <div style="font-size:12px; color:#cbd5e1; margin-bottom:12px; line-height:1.5;">
+          ${marked.parse(parsedPm.summary || 'Blue Team forensic audit of captured flag and exploit primitives.')}
+        </div>
+
+        ${sysmonLogs.length > 0 ? `
+          <div style="margin-bottom:14px; border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:rgba(0,0,0,0.4);">
+            <div style="background:rgba(0,210,255,0.08); padding:6px 10px; font-family:var(--mono); font-size:11px; color:var(--primary); font-weight:bold; border-bottom:1px solid var(--border-color);">
+              🛡️ SYSMON INCIDENT EVENT LOGS (HOST FORENSICS)
+            </div>
+            <table style="width:100%; border-collapse:collapse; text-align:left;">
+              <thead>
+                <tr style="border-bottom:1px solid rgba(255,255,255,0.1); font-family:var(--mono); font-size:10px; color:var(--text-muted);">
+                  <th style="padding:6px 8px;">ID</th>
+                  <th style="padding:6px 8px;">EVENT TYPE</th>
+                  <th style="padding:6px 8px;">EXECUTION ARTIFACT</th>
+                  <th style="padding:6px 8px;">TIMESTAMP</th>
+                </tr>
+              </thead>
+              <tbody>
+                ${logsHtml}
+              </tbody>
+            </table>
+          </div>
+        ` : ''}
+
+        ${parsedPm.pcapStream ? `
+          <div style="margin-bottom:14px; border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:rgba(0,0,0,0.4);">
+            <div style="display:flex; justify-content:space-between; align-items:center; background:rgba(255,183,77,0.08); padding:6px 10px; border-bottom:1px solid var(--border-color);">
+              <span style="font-family:var(--mono); font-size:11px; color:#ffb74d; font-weight:bold;">📡 NETWORK PACKET CAPTURE (RAW PCAP STREAM)</span>
+              <button class="btn-ghost btn-sm" onclick="downloadPcapTrace('${escapeHtml(encodeURIComponent(parsedPm.pcapStream))}', '${escapeHtml(data.challengeTitle || 'attack_trace')}')" style="font-size:10px; padding:2px 8px; border-color:#ffb74d; color:#ffb74d;">📥 Download PCAP</button>
+            </div>
+            <pre style="margin:0; padding:10px; font-family:var(--mono); font-size:11px; color:#38bdf8; max-height:140px; overflow-y:auto; background:rgba(5,10,20,0.8); line-height:1.4;">${escapeHtml(parsedPm.pcapStream)}</pre>
+          </div>
+        ` : ''}
+
+        ${parsedPm.detectionRule ? `
+          <div style="border:1px solid var(--border-color); border-radius:6px; overflow:hidden; background:rgba(0,0,0,0.4);">
+            <div style="background:rgba(0,255,136,0.08); padding:6px 10px; font-family:var(--mono); font-size:11px; color:#00ff88; font-weight:bold; border-bottom:1px solid var(--border-color);">
+              🔍 BLUE TEAM DETECTION RULE (SIGMA / SNORT SIGNATURE)
+            </div>
+            <pre style="margin:0; padding:10px; font-family:var(--mono); font-size:11px; color:#00ff88; background:rgba(5,10,20,0.8); white-space:pre-wrap;">${escapeHtml(parsedPm.detectionRule)}</pre>
+          </div>
+        ` : ''}
+      `;
+    }
+
+    const remContainer = document.getElementById('pmTabRemContent');
+    if (remContainer) {
+      const existing = data.remediation;
+      const bonusPts = data.bonusPoints || 25;
+
+      if (existing) {
+        remContainer.innerHTML = `
+          <div style="background:rgba(0,255,136,0.08); border:1px dashed #00ff88; border-radius:6px; padding:14px; margin-bottom:12px;">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+              <span style="color:#00ff88; font-family:var(--mono); font-size:12px; font-weight:bold;">✓ REMEDIATION ADVISORY APPROVED</span>
+              <span style="font-family:var(--mono); font-size:11px; background:rgba(0,255,136,0.2); color:#00ff88; padding:2px 8px; border-radius:4px;">+${existing.awarded_points || bonusPts} PTS CREDITED</span>
+            </div>
+            <div style="font-size:12px; color:#f1f5f9; line-height:1.6; font-style:italic;">
+              "${escapeHtml(existing.remediation_text)}"
+            </div>
+            <div style="font-size:10px; color:var(--text-muted); margin-top:8px; font-family:var(--mono);">
+              Submitted: ${new Date(existing.submitted_at).toLocaleString()}
+            </div>
+          </div>
+          <button class="btn-ghost btn-sm" onclick="showRemediationForm(${challengeId}, ${bonusPts})" style="font-size:11px; border-color:var(--primary);">✏️ Update Remediation Advisory</button>
+        `;
+      } else {
+        showRemediationForm(challengeId, bonusPts);
+      }
+    }
+  } catch(e) {
+    console.error('Failed to load postmortem:', e);
+  }
+}
+
+function showRemediationForm(challengeId, bonusPts = 25) {
+  const remContainer = document.getElementById('pmTabRemContent');
+  if (!remContainer) return;
+
+  remContainer.innerHTML = `
+    <div style="background:rgba(255,183,77,0.04); border:1px solid rgba(255,183,77,0.3); border-radius:6px; padding:14px; margin-bottom:12px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span style="font-family:var(--mono); font-size:12px; color:#ffb74d; font-weight:bold;">💼 CLIENT REMEDIATION ADVISORY TASK</span>
+        <span style="font-family:var(--mono); font-size:11px; color:#00ff88; font-weight:bold;">+${bonusPts} BONUS POINTS</span>
+      </div>
+      <p style="font-size:12px; color:var(--text-muted); margin-bottom:10px; line-height:1.5;">
+        Simulate a professional penetration tester by drafting a concise <strong>3-sentence remediation advisory</strong> for the client:
+        <br>1. <em>Root Cause:</em> Why did the vulnerability exist?
+        <br>2. <em>Immediate Patch:</em> What code/configuration change fixes it?
+        <br>3. <em>Hardening Control:</em> What architectural defense prevents regression?
+      </p>
+      <textarea id="remediationInput" oninput="updateSentenceCount(this)" style="width:100%; min-height:80px; font-family:var(--sans); font-size:12px; line-height:1.5; padding:8px;" placeholder="1. The vulnerability occurred due to unvalidated user input in the deserialization routine.&#10;2. Immediately implement strict schema validation and disable polymorphic deserializers.&#10;3. Enforce principle of least privilege and deploy runtime container security sensors."></textarea>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px;">
+        <span id="sentenceCountBadge" style="font-family:var(--mono); font-size:11px; color:var(--text-muted);">Sentences: 0 / 3</span>
+        <button type="button" class="btn-primary" onclick="submitRemediationReport(${challengeId})" style="padding:6px 14px; font-size:11px; font-family:var(--mono);">Submit Advisory (+${bonusPts} pts)</button>
+      </div>
+      <div id="remediationMsg" style="margin-top:8px; font-size:11px; font-family:var(--mono);"></div>
+    </div>
+  `;
+}
+
+function updateSentenceCount(el) {
+  const text = el.value.trim();
+  const sentences = text.split(/[.!?]+/).filter(s => s.trim().length > 5);
+  const badge = document.getElementById('sentenceCountBadge');
+  if (badge) {
+    badge.textContent = `Sentences: ${sentences.length} / 3`;
+    badge.style.color = sentences.length >= 3 ? 'var(--success)' : 'var(--text-muted)';
+  }
+}
+
+async function submitRemediationReport(challengeId) {
+  const text = document.getElementById('remediationInput')?.value.trim();
+  const msgEl = document.getElementById('remediationMsg');
+  if (!text || text.length < 30) {
+    if (msgEl) {
+      msgEl.style.color = 'var(--danger)';
+      msgEl.textContent = 'Please provide a 3-sentence advisory describing root cause, patch, and hardening control.';
+    }
+    return;
+  }
+
+  try {
+    const res = await fetch(`/api/challenges/${challengeId}/remediation`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ remediation_text: text })
+    });
+    const data = await res.json();
+    if (res.ok) {
+      if (msgEl) {
+        msgEl.style.color = 'var(--success)';
+        msgEl.textContent = data.message;
+      }
+      setTimeout(() => {
+        loadPostMortem(challengeId);
+        loadChallenges();
+      }, 1200);
+    } else {
+      if (msgEl) {
+        msgEl.style.color = 'var(--danger)';
+        msgEl.textContent = data.error || 'Submission failed.';
+      }
+    }
+  } catch(err) {
+    if (msgEl) {
+      msgEl.style.color = 'var(--danger)';
+      msgEl.textContent = 'Network error.';
+    }
+  }
+}
+
+function switchPostMortemTab(tab) {
+  const logsBtn = document.getElementById('pmTabLogsBtn');
+  const remBtn = document.getElementById('pmTabRemBtn');
+  const logsContent = document.getElementById('pmTabLogsContent');
+  const remContent = document.getElementById('pmTabRemContent');
+
+  if (tab === 'logs') {
+    logsBtn.style.background = 'rgba(0,210,255,0.1)';
+    logsBtn.style.color = 'var(--primary)';
+    remBtn.style.background = 'transparent';
+    remBtn.style.color = '#ffb74d';
+    logsContent.classList.remove('hidden');
+    remContent.classList.add('hidden');
+  } else {
+    remBtn.style.background = 'rgba(255,183,77,0.15)';
+    remBtn.style.color = '#ffb74d';
+    logsBtn.style.background = 'transparent';
+    logsBtn.style.color = 'var(--primary)';
+    remContent.classList.remove('hidden');
+    logsContent.classList.add('hidden');
+  }
+}
+
+function downloadPcapTrace(encodedStream, title) {
+  const stream = decodeURIComponent(encodedStream);
+  const blob = new Blob([stream], { type: 'text/plain;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `${title.toLowerCase().replace(/[^a-z0-9]/g, '_')}_attack_trace.txt`;
+  document.body.appendChild(a);
+  a.click();
+  document.body.removeChild(a);
+}
+
 document.getElementById('profileBtn').onclick = async () => {
   document.getElementById('profileModal').classList.remove('hidden');
   const res = await fetch('/api/auth/profile');
@@ -1437,6 +2133,34 @@ function renderAnomaly() {
   updateTimer();
   anomalyInterval = setInterval(updateTimer, 1000);
 }
+
+// Blue Team IDS Quarantine Listener
+let idsQuarantineTimer = null;
+socket.on('ids:quarantine', (data) => {
+  const banner = document.getElementById('idsQuarantineBanner');
+  const reasonEl = document.getElementById('idsQuarantineReason');
+  const countEl = document.getElementById('idsQuarantineCountdown');
+  if (!banner) return;
+
+  clearInterval(idsQuarantineTimer);
+  banner.classList.remove('hidden');
+  if (reasonEl) reasonEl.textContent = `Target instance quarantined for 5 minutes due to ${data.reason || 'noisy scanning activity'}. Rate limit your tools and practice stealth evasion!`;
+
+  let remainingSec = Math.floor((data.remainingMs || 300000) / 1000);
+  const tick = () => {
+    if (remainingSec <= 0) {
+      clearInterval(idsQuarantineTimer);
+      banner.classList.add('hidden');
+    } else {
+      const m = Math.floor(remainingSec / 60);
+      const s = (remainingSec % 60).toString().padStart(2, '0');
+      if (countEl) countEl.textContent = `⏱ ${m}:${s}`;
+      remainingSec--;
+    }
+  };
+  tick();
+  idsQuarantineTimer = setInterval(tick, 1000);
+});
 </script>
 <script src="/js/sfx.js"></script>
 </body>

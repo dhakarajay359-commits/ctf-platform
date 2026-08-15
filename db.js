@@ -96,7 +96,25 @@ const db = {
         docker_image TEXT,
         created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
         is_koth INTEGER DEFAULT 0,
-        is_practice INTEGER DEFAULT 0
+        is_practice INTEGER DEFAULT 0,
+        corporate_context TEXT,
+        target_asset TEXT,
+        ticket_number TEXT,
+        target_artifacts TEXT,
+        blue_team_postmortem TEXT,
+        remediation_bonus_points INTEGER DEFAULT 25,
+        remediation_guide TEXT
+      );
+
+      CREATE TABLE IF NOT EXISTS remediations (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+        challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+        remediation_text TEXT NOT NULL,
+        status TEXT DEFAULT 'approved',
+        awarded_points INTEGER DEFAULT 25,
+        submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(team_id, challenge_id)
       );
 
       CREATE TABLE IF NOT EXISTS hints (
@@ -197,6 +215,17 @@ const db = {
         submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
       );
 
+      CREATE TABLE IF NOT EXISTS ids_logs (
+        id SERIAL PRIMARY KEY,
+        team_id INTEGER REFERENCES teams(id) ON DELETE SET NULL,
+        team_name TEXT,
+        ip TEXT,
+        trigger_rule TEXT NOT NULL,
+        details TEXT,
+        action_taken TEXT,
+        created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+      );
+
       CREATE TABLE IF NOT EXISTS "session" (
         "sid" varchar NOT NULL COLLATE "default",
         "sess" json NOT NULL,
@@ -212,6 +241,25 @@ const db = {
       await pool.query('ALTER TABLE teams ADD COLUMN IF NOT EXISTS team_code TEXT UNIQUE');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_koth INTEGER DEFAULT 0');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS is_practice INTEGER DEFAULT 0');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS corporate_context TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS target_asset TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS ticket_number TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS target_artifacts TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS blue_team_postmortem TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS remediation_bonus_points INTEGER DEFAULT 25');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS remediation_guide TEXT');
+      await pool.query(`
+        CREATE TABLE IF NOT EXISTS remediations (
+          id SERIAL PRIMARY KEY,
+          team_id INTEGER NOT NULL REFERENCES teams(id) ON DELETE CASCADE,
+          challenge_id INTEGER NOT NULL REFERENCES challenges(id) ON DELETE CASCADE,
+          remediation_text TEXT NOT NULL,
+          status TEXT DEFAULT 'approved',
+          awarded_points INTEGER DEFAULT 25,
+          submitted_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+          UNIQUE(team_id, challenge_id)
+        )
+      `);
     } catch(e) {
       console.error('Error adding columns:', e);
     }

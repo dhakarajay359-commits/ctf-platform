@@ -199,7 +199,14 @@ module.exports = function (io) {
       visible,
       hints,
       requires,
-      isPractice
+      isPractice,
+      corporate_context,
+      target_asset,
+      ticket_number,
+      target_artifacts,
+      blue_team_postmortem,
+      remediation_bonus_points,
+      remediation_guide
     } = req.body;
     if (!title || !flag || points === undefined || points === null || points === '') {
       return res.status(400).json({
@@ -208,9 +215,27 @@ module.exports = function (io) {
     }
     const flagHash = bcrypt.hashSync(String(flag).trim(), 10);
     const info = await db.prepare(`
-      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(title.trim(), categoryId || null, description, Number(points), flagHash, difficulty || 'medium', link || null, visible === false ? 0 : 1, requires ? Number(requires) : null, isPractice ? 1 : 0);
+      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice, corporate_context, target_asset, ticket_number, target_artifacts, blue_team_postmortem, remediation_bonus_points, remediation_guide)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    `).run(
+      title.trim(),
+      categoryId || null,
+      description,
+      Number(points),
+      flagHash,
+      difficulty || 'medium',
+      link || null,
+      visible === false ? 0 : 1,
+      requires ? Number(requires) : null,
+      isPractice ? 1 : 0,
+      corporate_context || null,
+      target_asset || null,
+      ticket_number || null,
+      target_artifacts || null,
+      blue_team_postmortem || null,
+      remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : 25,
+      remediation_guide || null
+    );
     const challengeId = info.lastInsertRowid;
     if (Array.isArray(hints)) {
       const insertHint = db.prepare('INSERT INTO hints (challenge_id, text, cost, order_index) VALUES (?, ?, ?, ?)');
@@ -234,7 +259,14 @@ module.exports = function (io) {
       link,
       visible,
       requires,
-      isPractice
+      isPractice,
+      corporate_context,
+      target_asset,
+      ticket_number,
+      target_artifacts,
+      blue_team_postmortem,
+      remediation_bonus_points,
+      remediation_guide
     } = req.body;
     const existing = await db.prepare('SELECT * FROM challenges WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({
@@ -243,12 +275,62 @@ module.exports = function (io) {
     const flagHash = flag && flag.trim() ? bcrypt.hashSync(flag.trim(), 10) : existing.flag_hash;
     await db.prepare(`
       UPDATE challenges SET title = ?, category_id = ?, description = ?, points = ?,
-        flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?
+        flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?,
+        corporate_context = ?, target_asset = ?, ticket_number = ?, target_artifacts = ?,
+        blue_team_postmortem = ?, remediation_bonus_points = ?, remediation_guide = ?
       WHERE id = ?
-    `).run(title ?? existing.title, categoryId ?? existing.category_id, description ?? existing.description, points !== undefined ? Number(points) : existing.points, flagHash, difficulty ?? existing.difficulty, link ?? existing.link, visible === false ? 0 : 1, requires !== undefined ? requires ? Number(requires) : null : existing.requires, isPractice !== undefined ? isPractice ? 1 : 0 : existing.is_practice, id);
+    `).run(
+      title ?? existing.title,
+      categoryId ?? existing.category_id,
+      description ?? existing.description,
+      points !== undefined ? Number(points) : existing.points,
+      flagHash,
+      difficulty ?? existing.difficulty,
+      link ?? existing.link,
+      visible === false ? 0 : 1,
+      requires !== undefined ? (requires ? Number(requires) : null) : existing.requires,
+      isPractice !== undefined ? (isPractice ? 1 : 0) : existing.is_practice,
+      corporate_context !== undefined ? corporate_context : existing.corporate_context,
+      target_asset !== undefined ? target_asset : existing.target_asset,
+      ticket_number !== undefined ? ticket_number : existing.ticket_number,
+      target_artifacts !== undefined ? target_artifacts : existing.target_artifacts,
+      blue_team_postmortem !== undefined ? blue_team_postmortem : existing.blue_team_postmortem,
+      remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : existing.remediation_bonus_points,
+      remediation_guide !== undefined ? remediation_guide : existing.remediation_guide,
+      id
+    );
     res.json({
       ok: true
     });
+  });
+
+  // Remediation Reports Management
+  router.get('/remediations', async (req, res) => {
+    const rows = await db.prepare(`
+      SELECT r.id, r.team_id, r.challenge_id, r.remediation_text, r.status, r.awarded_points, r.submitted_at,
+             t.name as team_name, c.title as challenge_title, c.points as challenge_points, c.remediation_guide
+      FROM remediations r
+      JOIN teams t ON t.id = r.team_id
+      JOIN challenges c ON c.id = r.challenge_id
+      ORDER BY r.submitted_at DESC
+    `).all();
+    res.json(rows);
+  });
+
+  router.post('/remediations/:id/review', async (req, res) => {
+    const id = Number(req.params.id);
+    const { status, awarded_points } = req.body;
+    await db.prepare('UPDATE remediations SET status = ?, awarded_points = ? WHERE id = ?')
+      .run(status || 'approved', Number(awarded_points) !== undefined ? Number(awarded_points) : 25, id);
+    broadcastScoreboard(io);
+    res.json({ ok: true });
+  });
+
+  router.delete('/remediations/:id', async (req, res) => {
+    const id = Number(req.params.id);
+    await db.prepare('DELETE FROM remediations WHERE id = ?').run(id);
+    broadcastScoreboard(io);
+    res.json({ ok: true });
   });
   
   router.post('/challenges/move-all-to-practice', async (req, res) => {
@@ -469,6 +551,82 @@ module.exports = function (io) {
     } catch (err) {
       console.error('Error fetching chat messages for team:', err);
       res.status(500).json({ error: 'Failed to fetch messages' });
+    }
+  });
+  router.delete('/chat/messages/:teamId', async (req, res) => {
+    try {
+      await db.prepare('DELETE FROM messages WHERE team_id = ?').run(req.params.teamId);
+      res.json({ ok: true, message: 'Messages wiped successfully' });
+    } catch (err) {
+      console.error('Error wiping chat messages for team:', err);
+      res.status(500).json({ error: 'Failed to wipe messages' });
+    }
+  });
+  router.delete('/chat/messages', async (req, res) => {
+    try {
+      await db.prepare('DELETE FROM messages').run();
+      res.json({ ok: true, message: 'All chat messages wiped successfully' });
+    } catch (err) {
+      console.error('Error wiping all chat messages:', err);
+      res.status(500).json({ error: 'Failed to wipe all messages' });
+    }
+  });
+
+  // ---- Blue Team IDS & Active Defense Controls ----
+  router.get('/ids/quarantine', (req, res) => {
+    try {
+      const now = Date.now();
+      const list = [];
+      if (global.idsQuarantine) {
+        for (const [key, val] of global.idsQuarantine.entries()) {
+          if (now < val.expiresAt) {
+            list.push({
+              key,
+              ...val,
+              remainingSeconds: Math.ceil((val.expiresAt - now) / 1000)
+            });
+          } else {
+            global.idsQuarantine.delete(key);
+          }
+        }
+      }
+      res.json(list);
+    } catch (e) {
+      console.error('Error fetching IDS quarantine:', e);
+      res.status(500).json({ error: 'Failed to fetch quarantine' });
+    }
+  });
+
+  router.post('/ids/unban', (req, res) => {
+    try {
+      const { key } = req.body;
+      if (global.idsQuarantine && key) {
+        global.idsQuarantine.delete(key);
+      }
+      res.json({ ok: true, message: 'Quarantine lifted successfully' });
+    } catch (e) {
+      console.error('Error lifting quarantine:', e);
+      res.status(500).json({ error: 'Failed to lift quarantine' });
+    }
+  });
+
+  router.get('/ids/logs', async (req, res) => {
+    try {
+      const logs = await db.prepare('SELECT * FROM ids_logs ORDER BY created_at DESC LIMIT 100').all();
+      res.json(logs || []);
+    } catch (e) {
+      console.error('Error fetching IDS logs:', e);
+      res.status(500).json({ error: 'Failed to fetch IDS logs' });
+    }
+  });
+
+  router.delete('/ids/logs', async (req, res) => {
+    try {
+      await db.prepare('DELETE FROM ids_logs').run();
+      res.json({ ok: true });
+    } catch (e) {
+      console.error('Error clearing IDS logs:', e);
+      res.status(500).json({ error: 'Failed to clear IDS logs' });
     }
   });
 

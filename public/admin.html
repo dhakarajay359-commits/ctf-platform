@@ -51,6 +51,7 @@
         <button data-section="registrations">Live Registrations</button>
         <button data-section="analytics">Analytics 📊</button>
         <button data-section="security">Security 🛡</button>
+        <button data-section="remediations">Remediations 📝</button>
         <button data-section="anomaly">Anomalies ⚠</button>
         <button data-section="chat">Support Chat</button>
         <button data-section="feedback">Feedback</button>
@@ -229,12 +230,69 @@
           </div>
         </section>
 
-        <!-- SECURITY -->
+        <!-- SECURITY / BLUE TEAM IDS -->
         <section id="section-security" class="hidden">
-          <h2>Security Alerts</h2>
-          <p style="color:var(--text-muted);">Real-time monitoring for malicious activity and flag sharing.</p>
-          <div id="securityAlertsList" style="display:flex; flex-direction:column; gap:10px;">
-            <div style="color:var(--text-muted); font-style:italic;">No security alerts right now. System is clean.</div>
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <div>
+              <h2 style="margin:0;">Blue Team IDS & Active Defense</h2>
+              <p style="color:var(--text-muted); margin:4px 0 0 0; font-size:13px;">Real-time automated Intrusion Detection System (IDS) & Web Application Firewall (WAF).</p>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-ghost btn-sm" onclick="loadSecurityDashboard()">🔄 Refresh Defense Grid</button>
+            </div>
+          </div>
+
+          <!-- Active Quarantines -->
+          <div class="panel" style="margin-bottom:24px; border:1px solid rgba(255, 51, 102, 0.4); background:rgba(255, 51, 102, 0.03);">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h3 style="margin:0; color:#ff3366; display:flex; align-items:center; gap:8px;">
+                <span>🚨 Active Quarantines (5-Min Defensive Lockouts)</span>
+              </h3>
+              <span id="quarantineCountBadge" style="background:#ff3366; color:#000; font-size:11px; font-weight:bold; padding:2px 8px; border-radius:10px; font-family:var(--mono);">0 Active</span>
+            </div>
+            <p style="color:var(--text-muted); font-size:12px; margin-top:0;">
+              Actors who triggered noisy automated scanners (nmap -A, dirb, ffuf, gobuster) or high-frequency request floods. Target instances are reset and quarantined for 5 minutes.
+            </p>
+            <div id="activeQuarantinesList" style="overflow-x:auto;">
+              <div style="color:var(--text-muted); font-style:italic; padding:12px 0;">No active IP or team quarantines. Target instances operating normally.</div>
+            </div>
+          </div>
+
+          <!-- Live Security Alerts -->
+          <div class="panel" style="margin-bottom:24px;">
+            <h3 style="margin-top:0;">Live Security Alerts & Broadcasts</h3>
+            <p style="color:var(--text-muted); font-size:12px;">Streaming alerts for platform attacks, brute force detection, and multi-IP sharing.</p>
+            <div id="securityAlertsList" style="display:flex; flex-direction:column; gap:10px; max-height:220px; overflow-y:auto;">
+              <div style="color:var(--text-muted); font-style:italic;">No security alerts right now. System is clean.</div>
+            </div>
+          </div>
+
+          <!-- IDS Incident Audit Log -->
+          <div class="panel">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+              <h3 style="margin:0;">IDS Incident History & Forensics</h3>
+              <button class="btn-ghost btn-sm" style="color:#ff5252; border-color:rgba(255,82,82,0.4); font-size:11px;" onclick="clearIdsLogs()">🗑️ Clear Audit Log</button>
+            </div>
+            <div id="idsLogsTableContainer" style="overflow-x:auto;">
+              <div style="color:var(--text-muted); font-style:italic; padding:12px 0;">Loading IDS incident logs...</div>
+            </div>
+          </div>
+        </section>
+
+        <!-- REMEDIATION REPORTS -->
+        <section id="section-remediations" class="hidden">
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; flex-wrap:wrap; gap:10px;">
+            <div>
+              <h2 style="margin:0;">Client Remediation Reports</h2>
+              <p style="color:var(--text-muted); margin:4px 0 0 0; font-size:13px;">Review and grade 3-sentence vulnerability remediation advisories submitted by penetration testing teams.</p>
+            </div>
+            <button class="btn-ghost btn-sm" onclick="loadAdminRemediations()">🔄 Refresh Reports</button>
+          </div>
+
+          <div class="panel">
+            <div id="remediationsTableContainer" style="overflow-x:auto;">
+              <div style="color:var(--text-muted); font-style:italic; padding:15px 0;">Loading remediation reports...</div>
+            </div>
           </div>
         </section>
 
@@ -242,7 +300,10 @@
         <section id="section-chat" class="hidden">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px;">
             <h2 style="margin:0;">Support Chat</h2>
-            <button class="btn-ghost btn-sm" onclick="loadChatTeams()">🔄 Refresh Chats</button>
+            <div style="display:flex; gap:8px;">
+              <button class="btn-ghost btn-sm" style="color:#ff5252; border-color:rgba(255,82,82,0.4);" onclick="wipeAllAdminChats()">🗑️ Wipe All Chats</button>
+              <button class="btn-ghost btn-sm" onclick="loadChatTeams()">🔄 Refresh Chats</button>
+            </div>
           </div>
           <div style="display:flex; gap:20px; height: 550px;">
             <div style="width: 280px; display:flex; flex-direction:column; background:var(--panel-bg); border:1px solid var(--border-color); border-radius:6px; overflow:hidden;">
@@ -564,6 +625,7 @@ document.querySelectorAll('.admin-sidebar button').forEach(btn => {
     document.querySelectorAll('[id^="section-"]').forEach(s => s.classList.add('hidden'));
     document.getElementById('section-' + btn.dataset.section).classList.remove('hidden');
     if (btn.dataset.section === 'feedback') loadFeedback();
+    if (btn.dataset.section === 'remediations') loadAdminRemediations();
   };
 });
 
@@ -582,6 +644,7 @@ async function initDashboard() {
   await loadNotifications();
   await loadSettings();
   await loadAnalytics();
+  await loadSecurityDashboard();
 }
 
 // ---------- Notifications & Alerts ----------
@@ -1215,16 +1278,88 @@ function openEditor(challenge, isLiveContext = true) {
       <option value="1" ${!defaultToLive ? 'selected' : ''}>🛡️ Practice Arena (Appears on Practice Dashboard)</option>
     </select>
 
+    <!-- Realistic Corporate Context & OSINT Packages -->
+    <div style="background: rgba(0,210,255,0.03); border: 1px solid rgba(0,210,255,0.25); border-radius: 6px; padding: 14px; margin-bottom: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <span style="font-weight:bold; font-size:12px; color:var(--primary); font-family:var(--mono);">🏢 REALISTIC CORPORATE CONTEXT & SCOPE OF WORK</span>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-ghost btn-sm" id="genScopeBtn" style="font-size:11px; padding:2px 8px; border-color:var(--primary);">⚡ Generate SOW</button>
+          <button type="button" class="btn-ghost btn-sm" id="genEmailsBtn" style="font-size:11px; padding:2px 8px; border-color:#ffb74d; color:#ffb74d;">⚡ Generate Email Thread</button>
+        </div>
+      </div>
+      
+      <div class="field-row">
+        <div>
+          <label for="fTicketNumber">Incident Ticket #</label>
+          <input id="fTicketNumber" value="${challenge?.ticket_number ? escapeHtml(challenge.ticket_number) : ''}" placeholder="e.g. INC-89211">
+        </div>
+        <div>
+          <label for="fTargetAsset">Target Asset / Hostname</label>
+          <input id="fTargetAsset" value="${challenge?.target_asset ? escapeHtml(challenge.target_asset) : ''}" placeholder="e.g. corp-internal-dev.local [192.168.10.50]">
+        </div>
+      </div>
+
+      <label for="fCorporateContext" style="margin-top:8px;">Scope of Work / Incident Narrative Brief (Markdown)</label>
+      <textarea id="fCorporateContext" style="width:100%; min-height:80px; font-family:monospace; margin-bottom:12px;" placeholder="A client hired us to audit corp-internal-dev.local. Employees reported abnormal CPU usage on this server...">${challenge?.corporate_context ? escapeHtml(challenge.corporate_context) : ''}</textarea>
+
+      <!-- Simulated Corporate Emails -->
+      <div style="border-top: 1px dashed rgba(0,210,255,0.2); padding-top:10px; margin-top:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+          <label style="margin:0; font-weight:bold; font-size:11px; color:#ffb74d;">📧 Simulated Internal Emails (OSINT Comms)</label>
+          <button type="button" class="btn-ghost btn-sm" id="addEmailBtn" style="font-size:11px; padding:1px 6px;">+ Add Email</button>
+        </div>
+        <div id="emailsContainer" style="display:flex; flex-direction:column; gap:8px;">
+          ${(function(){
+            let list = [];
+            try {
+              const parsed = challenge?.target_artifacts ? JSON.parse(challenge.target_artifacts) : {};
+              if (Array.isArray(parsed.emails)) list = parsed.emails;
+            } catch(e){}
+            return list.map(em => `
+              <div class="email-row" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:4px; padding:8px;">
+                <div style="display:flex; gap:6px; margin-bottom:4px;">
+                  <input placeholder="From (e.g. director@corp.com)" value="${escapeHtml(em.from || '')}" class="em-from" style="flex:1; font-size:11px; padding:4px 6px;">
+                  <input placeholder="To (e.g. devops@corp.com)" value="${escapeHtml(em.to || '')}" class="em-to" style="flex:1; font-size:11px; padding:4px 6px;">
+                  <button type="button" class="btn-ghost btn-sm remove-email" style="color:#ff5252; padding:2px 6px;">✕</button>
+                </div>
+                <input placeholder="Subject" value="${escapeHtml(em.subject || '')}" class="em-subj" style="width:100%; box-sizing:border-box; font-size:11px; padding:4px 6px; margin-bottom:4px;">
+                <textarea placeholder="Email Body" class="em-body" style="width:100%; height:50px; font-size:11px; padding:4px 6px; margin:0;">${escapeHtml(em.body || '')}</textarea>
+              </div>
+            `).join('');
+          })()}
+        </div>
+      </div>
+
+      <!-- Network Topology & OSINT Downloads -->
+      <div style="border-top: 1px dashed rgba(0,210,255,0.2); padding-top:10px; margin-top:12px;">
+        <label style="margin:0 0 6px 0; font-weight:bold; font-size:11px; color:var(--primary);">🗺️ Network Topology & OSINT Artifacts</label>
+        <div class="field-row" style="margin-bottom:6px;">
+          <div>
+            <label for="fTopologyUrl" style="font-size:11px;">Custom Topology Diagram URL (Optional)</label>
+            <input id="fTopologyUrl" value="${(function(){
+              try { return JSON.parse(challenge?.target_artifacts || '{}').topologyUrl || ''; } catch(e){ return ''; }
+            })()}" placeholder="/uploads/topology.png">
+          </div>
+          <div>
+            <label for="fOsintPackageUrl" style="font-size:11px;">Downloadable OSINT/Forensics File URL</label>
+            <input id="fOsintPackageUrl" value="${(function(){
+              try { return JSON.parse(challenge?.target_artifacts || '{}').osintPackageUrl || ''; } catch(e){ return ''; }
+            })()}" placeholder="/uploads/memory_dump.pcap">
+          </div>
+        </div>
+      </div>
+    </div>
+
     <div style="display:flex; justify-content:space-between; align-items:flex-end; margin-top:15px;">
-      <label for="fDescription" style="margin-bottom:0;">Question / Description (Markdown supported)</label>
+      <label for="fDescription" style="margin-bottom:0;">Technical Question / Task Notes (Markdown supported)</label>
       <label for="mediaUpload" class="btn-ghost btn-sm" style="cursor:pointer; display:inline-block; font-weight:normal; margin-bottom:0; font-family:var(--sans);">
-        <span id="uploadLabel">Upload Media (Img/Audio)</span>
-        <input type="file" id="mediaUpload" style="display:none;" accept="image/*,audio/*,.zip,.pdf,.txt">
+        <span id="uploadLabel">Upload Media (Img/Audio/Doc)</span>
+        <input type="file" id="mediaUpload" style="display:none;" accept="image/*,audio/*,.zip,.pdf,.txt,.pcap,.csv">
       </label>
     </div>
     <div style="display: flex; gap: 10px; margin-top: 8px; margin-bottom: 15px;">
-      <textarea id="fDescription" style="flex: 1; min-height: 150px; font-family: monospace;" oninput="document.getElementById('mdPreview').innerHTML = marked.parse(this.value)">${challenge ? escapeHtml(challenge.description) : ''}</textarea>
-      <div id="mdPreview" style="flex: 1; padding: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: var(--radius); overflow-y: auto; max-height: 150px;"></div>
+      <textarea id="fDescription" style="flex: 1; min-height: 120px; font-family: monospace;" oninput="document.getElementById('mdPreview').innerHTML = marked.parse(this.value)">${challenge ? escapeHtml(challenge.description) : ''}</textarea>
+      <div id="mdPreview" style="flex: 1; padding: 10px; background: rgba(0,0,0,0.4); border: 1px solid var(--border-color); border-radius: var(--radius); overflow-y: auto; max-height: 120px;"></div>
     </div>
 
     <label for="fLink">Resource link (optional)</label>
@@ -1233,17 +1368,42 @@ function openEditor(challenge, isLiveContext = true) {
     <label for="fFlag">Flag ${challenge ? '(leave blank to keep current)' : ''}</label>
     <input id="fFlag" placeholder="flag{...}">
 
-    <label>Hints</label>
-    <div id="hintsContainer">
-      ${hints.map(h => `
-        <div class="field-row hint-row" style="margin-bottom:8px;">
-          <input placeholder="Hint text" value="${escapeHtml(h.text)}" style="flex:2;">
-          <input type="number" placeholder="Cost" value="${h.cost}" style="flex:1;">
-          <button class="btn-ghost btn-sm remove-hint" style="flex:0 0 auto;">Remove</button>
+    <!-- Blue Team Post-Mortem & Remediation Configuration -->
+    <div style="background: rgba(0,255,136,0.03); border: 1px solid rgba(0,255,136,0.25); border-radius: 6px; padding: 14px; margin-top: 15px; margin-bottom: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <span style="font-weight:bold; font-size:12px; color:#00ff88; font-family:var(--mono);">🛡️ BLUE TEAM POST-MORTEM & REMEDIATION CONFIGURATION</span>
+        <button type="button" class="btn-ghost btn-sm" id="genPostMortemBtn" style="font-size:11px; padding:2px 8px; border-color:#00ff88; color:#00ff88;">⚡ Generate Sysmon & PCAP</button>
+      </div>
+
+      <div class="field-row">
+        <div>
+          <label for="fRemediationBonusPoints">Remediation Bonus Points</label>
+          <input id="fRemediationBonusPoints" type="number" value="${challenge?.remediation_bonus_points !== undefined ? challenge.remediation_bonus_points : 25}">
         </div>
-      `).join('')}
+        <div>
+          <label for="fRemediationGuide">Suggested Fix (Grading Reference)</label>
+          <input id="fRemediationGuide" value="${challenge?.remediation_guide ? escapeHtml(challenge.remediation_guide) : ''}" placeholder="e.g. Apply patch and enforce input validation.">
+        </div>
+      </div>
+
+      <label for="fBlueTeamPostmortem" style="margin-top:8px;">Post-Mortem Forensic Telemetry (JSON / Markdown with Sysmon/PCAP/Rules)</label>
+      <textarea id="fBlueTeamPostmortem" style="width:100%; min-height:85px; font-family:monospace; margin-bottom:0;" placeholder='{"summary":"...","sysmonLogs":[...],"pcapStream":"...","detectionRule":"..."}'>${challenge?.blue_team_postmortem ? escapeHtml(challenge.blue_team_postmortem) : ''}</textarea>
     </div>
-    <button class="btn-ghost btn-sm" id="addHintBtn" style="margin-bottom:20px;">+ Add hint</button>
+
+    <!-- Progressive Hints Configuration -->
+    <div style="background: rgba(0, 210, 255, 0.03); border: 1px solid rgba(0, 210, 255, 0.25); border-radius: 6px; padding: 14px; margin-top: 15px; margin-bottom: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; flex-wrap:wrap; gap:8px;">
+        <div>
+          <label style="margin:0; font-weight:bold; font-family:var(--mono); color:var(--primary); font-size:12px;">💡 SMART PROGRESSIVE HINTS & POINT DEDUCTIONS</label>
+          <div style="font-size:11px; color:var(--text-muted); margin-top:2px;">Customize exact point deductions for each level based on challenge type and difficulty.</div>
+        </div>
+        <div style="display:flex; gap:6px;">
+          <button type="button" class="btn-ghost btn-sm" id="genProgressiveHintsBtn" style="font-size:11px; padding:3px 10px; border-color:var(--primary); color:var(--primary);">⚡ Auto-Calculate 3 Tiers (Free / 10% / 30%)</button>
+          <button type="button" class="btn-primary btn-sm" id="addHintBtn" style="font-size:11px; padding:3px 10px;">+ Add Custom Tier</button>
+        </div>
+      </div>
+      <div id="hintsContainer"></div>
+    </div>
 
     <div style="display:flex; justify-content:flex-end; gap:10px;">
       <button class="btn-ghost" id="cancelEditorBtn">Cancel</button>
@@ -1314,26 +1474,247 @@ function openEditor(challenge, isLiveContext = true) {
     };
   }
 
-  const addHintBtn = document.getElementById('addHintBtn') || document.getElementById('addHintRow');
-  if (addHintBtn) {
-    addHintBtn.onclick = () => {
-      const row = document.createElement('div');
-      row.className = 'field-row hint-row';
-      row.style.marginBottom = '8px';
-      row.innerHTML = `
-        <input placeholder="Hint text" style="flex:2;">
-        <input type="number" placeholder="Cost" value="0" style="flex:1;">
-        <button type="button" class="btn-ghost btn-sm remove-hint" style="flex:0 0 auto;">Remove</button>
-      `;
-      document.getElementById('hintsContainer').appendChild(row);
-      row.querySelector('.remove-hint').onclick = () => row.remove();
+  const genScopeBtn = document.getElementById('genScopeBtn');
+  if (genScopeBtn) {
+    genScopeBtn.onclick = () => {
+      const titleVal = document.getElementById('fTitle').value.trim() || 'Target Service';
+      const catSelect = document.getElementById('fCategory');
+      const catVal = catSelect.options[catSelect.selectedIndex]?.textContent || 'Security';
+      const randomTicket = 'INC-' + Math.floor(10000 + Math.random() * 89999);
+      const randomHost = titleVal.toLowerCase().replace(/[^a-z0-9]/g, '-') + '.corp.local';
+
+      if (!document.getElementById('fTicketNumber').value) {
+        document.getElementById('fTicketNumber').value = randomTicket;
+      }
+      if (!document.getElementById('fTargetAsset').value) {
+        document.getElementById('fTargetAsset').value = randomHost + ' [192.168.10.' + Math.floor(20 + Math.random() * 80) + ']';
+      }
+
+      document.getElementById('fCorporateContext').value = `**Client Engagement Scope & Incident Triage:**\n\nA commercial client (**OmniCorp Global**) hired our security team under ticket **${document.getElementById('fTicketNumber').value}** to audit asset \`${document.getElementById('fTargetAsset').value}\`.\n\nEmployees reported abnormal behaviors, high CPU loads, and suspected credential leakage. Perform an authorized penetration assessment without causing service disruption.`;
     };
   }
-  document.querySelectorAll('.remove-hint').forEach(btn => {
-    btn.onclick = () => btn.closest('.hint-row').remove();
+
+  const emailsContainer = document.getElementById('emailsContainer');
+  const addEmailBtn = document.getElementById('addEmailBtn');
+  if (addEmailBtn) {
+    addEmailBtn.onclick = () => {
+      const div = document.createElement('div');
+      div.className = 'email-row';
+      div.style = "background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:4px; padding:8px;";
+      div.innerHTML = `
+        <div style="display:flex; gap:6px; margin-bottom:4px;">
+          <input placeholder="From (e.g. director@corp.com)" class="em-from" style="flex:1; font-size:11px; padding:4px 6px;">
+          <input placeholder="To (e.g. devops@corp.com)" class="em-to" style="flex:1; font-size:11px; padding:4px 6px;">
+          <button type="button" class="btn-ghost btn-sm remove-email" style="color:#ff5252; padding:2px 6px;">✕</button>
+        </div>
+        <input placeholder="Subject" class="em-subj" style="width:100%; box-sizing:border-box; font-size:11px; padding:4px 6px; margin-bottom:4px;">
+        <textarea placeholder="Email Body" class="em-body" style="width:100%; height:50px; font-size:11px; padding:4px 6px; margin:0;"></textarea>
+      `;
+      emailsContainer.appendChild(div);
+      div.querySelector('.remove-email').onclick = () => div.remove();
+    };
+  }
+  document.querySelectorAll('.remove-email').forEach(btn => {
+    btn.onclick = () => btn.closest('.email-row').remove();
   });
 
+  const genEmailsBtn = document.getElementById('genEmailsBtn');
+  if (genEmailsBtn) {
+    genEmailsBtn.onclick = () => {
+      const asset = document.getElementById('fTargetAsset').value.trim() || 'corp-internal-dev.local';
+      const ticket = document.getElementById('fTicketNumber').value.trim() || 'INC-89211';
+      
+      emailsContainer.innerHTML = `
+        <div class="email-row" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:4px; padding:8px;">
+          <div style="display:flex; gap:6px; margin-bottom:4px;">
+            <input placeholder="From" value="marcus.vance@omnicorp-defense.com (Head of SecOps)" class="em-from" style="flex:1; font-size:11px; padding:4px 6px;">
+            <input placeholder="To" value="consulting-auditors@sec-ops.net" class="em-to" style="flex:1; font-size:11px; padding:4px 6px;">
+            <button type="button" class="btn-ghost btn-sm remove-email" style="color:#ff5252; padding:2px 6px;">✕</button>
+          </div>
+          <input placeholder="Subject" value="[URGENT] Pentest Authorization for ${escapeHtml(asset)} (Ticket ${escapeHtml(ticket)})" class="em-subj" style="width:100%; box-sizing:border-box; font-size:11px; padding:4px 6px; margin-bottom:4px;">
+          <textarea placeholder="Email Body" class="em-body" style="width:100%; height:50px; font-size:11px; padding:4px 6px; margin:0;">Team, you have authorization to conduct an in-scope penetration assessment against ${escapeHtml(asset)}. Telemetry detected anomalous beacons. Blue team telemetry is active.</textarea>
+        </div>
+        <div class="email-row" style="background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:4px; padding:8px;">
+          <div style="display:flex; gap:6px; margin-bottom:4px;">
+            <input placeholder="From" value="sarah.chen@corp-internal-dev.local (Lead DevOps)" class="em-from" style="flex:1; font-size:11px; padding:4px 6px;">
+            <input placeholder="To" value="marcus.vance@omnicorp-defense.com" class="em-to" style="flex:1; font-size:11px; padding:4px 6px;">
+            <button type="button" class="btn-ghost btn-sm remove-email" style="color:#ff5252; padding:2px 6px;">✕</button>
+          </div>
+          <input placeholder="Subject" value="Re: System Configuration & Subnet Map" class="em-subj" style="width:100%; box-sizing:border-box; font-size:11px; padding:4px 6px; margin-bottom:4px;">
+          <textarea placeholder="Email Body" class="em-body" style="width:100%; height:50px; font-size:11px; padding:4px 6px; margin:0;">Staging services are bound to DMZ VLAN 40 (192.168.10.0/24). Production database is firewalled on internal 10.0.4.0/24.</textarea>
+        </div>
+      `;
+      emailsContainer.querySelectorAll('.remove-email').forEach(btn => {
+        btn.onclick = () => btn.closest('.email-row').remove();
+      });
+    };
+  }
+
+  // ⚡ Auto-generate Post-Mortem & Sysmon Logs Button
+  const genPostMortemBtn = document.getElementById('genPostMortemBtn');
+  if (genPostMortemBtn) {
+    genPostMortemBtn.onclick = () => {
+      const titleVal = document.getElementById('fTitle')?.value.trim() || 'Target Service';
+      const asset = document.getElementById('fTargetAsset')?.value.trim() || 'corp-internal-dev.local [192.168.10.50]';
+      const hostClean = asset.split(' ')[0];
+
+      const samplePostMortem = {
+        summary: `Incident Post-Mortem & Defense Reconstruction for ${titleVal}.\n\nDuring security assessment, Red Team exploited unauthenticated access primitives on target asset \`${asset}\`. Blue Team SIEM and Sysmon sensors captured initial process execution, network sockets, and flag retrieval.`,
+        sysmonLogs: [
+          { eventId: 1, event: "Process Creation", image: "/usr/bin/node /app/server.js", cmdline: "node /app/server.js --stage=production", user: "www-data", time: "14:22:05" },
+          { eventId: 3, event: "Network Connection", srcIp: "198.51.100.44", srcPort: "49152", destIp: "192.168.10.50", destPort: "8080", protocol: "TCP", time: "14:22:08" },
+          { eventId: 11, event: "File Access", path: "/var/secret/flag.txt", hash: "SHA256:e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855", time: "14:22:12" }
+        ],
+        pcapStream: `GET /api/exploit HTTP/1.1\r\nHost: ${hostClean}\r\nUser-Agent: Mozilla/5.0 (Operative Security Probe)\r\nAuthorization: Bearer <Dynamic_Session_Token>\r\nAccept: */*\r\n\r\nHTTP/1.1 200 OK\r\nContent-Type: application/json\r\n[+] Exploit verified. Dynamic Flag decrypted.`,
+        detectionRule: `alert tcp $EXTERNAL_NET any -> $HOME_NET 8080 (msg:"[BLUE TEAM] Exploit Signature Detected on ${hostClean}"; flow:to_server,established; content:"FLAG{"; classtype:trojan-activity; sid:2026001; rev:1;)`
+      };
+
+      document.getElementById('fBlueTeamPostmortem').value = JSON.stringify(samplePostMortem, null, 2);
+      if (!document.getElementById('fRemediationGuide').value) {
+        document.getElementById('fRemediationGuide').value = '1. Enforce strict input validation. 2. Disable deserialization of untrusted payloads. 3. Implement egress filtering and SIEM telemetry.';
+      }
+    };
+  }
+
+  // Populate existing hints in editor
+  const hintsContainer = document.getElementById('hintsContainer');
+  hintsContainer.innerHTML = '';
+  if (hints && hints.length > 0) {
+    hints.forEach((h, i) => {
+      hintsContainer.appendChild(createHintCard(h.text, h.cost, i));
+    });
+  } else {
+    // Populate default 3-tier structure for convenient editing
+    const basePts = Number(document.getElementById('fPoints')?.value) || 100;
+    const l2 = Math.max(5, Math.round(basePts * 0.1));
+    const l3 = Math.max(15, Math.round(basePts * 0.3));
+    hintsContainer.appendChild(createHintCard("Level 1 (Architectural Context): Inspect the target platform runtime and environment configuration.", 0, 0));
+    hintsContainer.appendChild(createHintCard("Level 2 (Methodology Pointer): Inspect input parameters and algorithm validation routines for bypass vectors.", l2, 1));
+    hintsContainer.appendChild(createHintCard("Level 3 (Direct Payload Syntax): Formulate exploit payload syntax using specific primitive formula.", l3, 2));
+  }
+
+  // ⚡ Auto-calculate 3-Tier Progressive Hints Button
+  const genHintsBtn = document.getElementById('genProgressiveHintsBtn');
+  if (genHintsBtn) {
+    genHintsBtn.onclick = () => {
+      const pts = Number(document.getElementById('fPoints')?.value) || 100;
+      const l2Cost = Math.max(5, Math.round(pts * 0.1));
+      const l3Cost = Math.max(15, Math.round(pts * 0.3));
+
+      hintsContainer.innerHTML = '';
+      hintsContainer.appendChild(createHintCard("Level 1 (Architectural Context): Inspect the target platform runtime and environment configuration.", 0, 0));
+      hintsContainer.appendChild(createHintCard("Level 2 (Methodology Pointer): Inspect input parameters and algorithm validation routines for bypass vectors.", l2Cost, 1));
+      hintsContainer.appendChild(createHintCard("Level 3 (Direct Payload Syntax): Formulate exploit payload syntax using specific primitive formula.", l3Cost, 2));
+    };
+  }
+
+  const addHintBtn = document.getElementById('addHintBtn');
+  if (addHintBtn) {
+    addHintBtn.onclick = () => {
+      const currentIndex = hintsContainer.querySelectorAll('.hint-row').length;
+      hintsContainer.appendChild(createHintCard('', 0, currentIndex));
+    };
+  }
+
   document.getElementById('saveChallengeBtn').onclick = saveChallenge;
+}
+
+function createHintCard(text = '', cost = 0, index = 0) {
+  const level = index + 1;
+  let levelName = 'Level 1: Architectural Context';
+  let badgeColor = '#00ff88';
+  let cardBorder = 'rgba(0,255,136,0.3)';
+  let cardBg = 'rgba(0,255,136,0.04)';
+  let costAdvice = 'Recommended: 0 (Free Context)';
+
+  if (level === 2) {
+    levelName = 'Level 2: Methodology Pointer';
+    badgeColor = '#ffb74d';
+    cardBorder = 'rgba(255,183,77,0.3)';
+    cardBg = 'rgba(255,183,77,0.04)';
+    costAdvice = 'Recommended: 5 - 20 pts (Small Deduction)';
+  } else if (level === 3) {
+    levelName = 'Level 3: Direct Payload Syntax Guidance';
+    badgeColor = '#ff3366';
+    cardBorder = 'rgba(255,51,102,0.3)';
+    cardBg = 'rgba(255,51,102,0.04)';
+    costAdvice = 'Recommended: 25 - 60 pts (Major Deduction)';
+  } else if (level > 3) {
+    levelName = `Level ${level}: Custom Hint Tier`;
+    badgeColor = '#00d2ff';
+    cardBorder = 'rgba(0,210,255,0.3)';
+    cardBg = 'rgba(0,210,255,0.04)';
+    costAdvice = 'Custom Deduction Tier';
+  }
+
+  const div = document.createElement('div');
+  div.className = 'hint-row';
+  div.style.cssText = `background:${cardBg}; border:1px solid ${cardBorder}; border-radius:6px; padding:12px; margin-bottom:12px;`;
+  div.innerHTML = `
+    <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+      <div style="display:flex; align-items:center; gap:8px;">
+        <span class="hint-level-label" style="font-family:var(--mono); font-weight:bold; font-size:12px; color:${badgeColor};">${levelName}</span>
+        <span style="font-size:10px; color:var(--text-muted); font-family:var(--mono);">(${costAdvice})</span>
+      </div>
+      <button type="button" class="btn-ghost btn-sm remove-hint" style="color:#ff5252; padding:2px 8px; font-size:11px;">✕ Remove</button>
+    </div>
+
+    <div style="display:flex; gap:10px; margin-bottom:4px; flex-wrap:wrap;">
+      <div style="flex:2; min-width:240px;">
+        <label style="font-size:11px; margin-bottom:4px; color:var(--text-muted);">Hint Content / Clue</label>
+        <textarea class="hint-text-input" placeholder="Enter hint advisory..." style="width:100%; min-height:55px; font-size:12px; margin:0; padding:6px 8px; font-family:var(--sans);">${escapeHtml(text)}</textarea>
+      </div>
+      <div style="flex:1; min-width:180px;">
+        <label style="font-size:11px; margin-bottom:4px; color:var(--text-muted);">Points to Deduct (Cost)</label>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <input type="number" class="hint-cost-input" value="${cost !== undefined ? cost : 0}" min="0" placeholder="0" style="flex:1; margin:0; font-family:var(--mono); font-weight:bold; font-size:13px; color:${badgeColor}; padding:6px 8px;">
+          <span style="font-family:var(--mono); font-size:11px; color:var(--text-muted);">pts</span>
+        </div>
+        <div style="display:flex; gap:4px; margin-top:6px; flex-wrap:wrap;">
+          <button type="button" class="btn-ghost btn-sm btn-set-cost" data-pct="0" style="font-size:10px; padding:2px 6px;">0 Free</button>
+          <button type="button" class="btn-ghost btn-sm btn-set-cost" data-pct="10" style="font-size:10px; padding:2px 6px;">10%</button>
+          <button type="button" class="btn-ghost btn-sm btn-set-cost" data-pct="25" style="font-size:10px; padding:2px 6px;">25%</button>
+          <button type="button" class="btn-ghost btn-sm btn-set-cost" data-pct="50" style="font-size:10px; padding:2px 6px;">50%</button>
+        </div>
+      </div>
+    </div>
+  `;
+
+  div.querySelector('.remove-hint').onclick = () => {
+    div.remove();
+    reindexHints();
+  };
+
+  div.querySelectorAll('.btn-set-cost').forEach(btn => {
+    btn.onclick = () => {
+      const pct = Number(btn.dataset.pct) || 0;
+      const basePts = Number(document.getElementById('fPoints')?.value) || 100;
+      const costVal = pct === 0 ? 0 : Math.max(1, Math.round(basePts * (pct / 100)));
+      div.querySelector('.hint-cost-input').value = costVal;
+    };
+  });
+
+  return div;
+}
+
+function reindexHints() {
+  const container = document.getElementById('hintsContainer');
+  if (!container) return;
+  const rows = container.querySelectorAll('.hint-row');
+  rows.forEach((row, i) => {
+    const level = i + 1;
+    let levelName = `Level ${level}: Custom Hint Tier`;
+    let badgeColor = '#00d2ff';
+    if (level === 1) { levelName = 'Level 1: Architectural Context'; badgeColor = '#00ff88'; }
+    else if (level === 2) { levelName = 'Level 2: Methodology Pointer'; badgeColor = '#ffb74d'; }
+    else if (level === 3) { levelName = 'Level 3: Direct Payload Syntax Guidance'; badgeColor = '#ff3366'; }
+    
+    const labelEl = row.querySelector('.hint-level-label');
+    if (labelEl) {
+      labelEl.textContent = levelName;
+      labelEl.style.color = badgeColor;
+    }
+  });
 }
 
 function closeEditor() {
@@ -1348,15 +1729,46 @@ async function saveChallenge() {
   const visible = document.getElementById('fVisible').value === '1';
   const is_practice = document.getElementById('fIsPractice').value === '1';
   const requires = document.getElementById('fRequires').value || null;
+  const ticket_number = document.getElementById('fTicketNumber').value.trim() || null;
+  const target_asset = document.getElementById('fTargetAsset').value.trim() || null;
+  const corporate_context = document.getElementById('fCorporateContext').value.trim() || null;
+
+  // Extract emails
+  const emailRows = [...document.querySelectorAll('#emailsContainer .email-row')];
+  const emails = emailRows.map(row => ({
+    from: row.querySelector('.em-from')?.value.trim() || '',
+    to: row.querySelector('.em-to')?.value.trim() || '',
+    subject: row.querySelector('.em-subj')?.value.trim() || '',
+    body: row.querySelector('.em-body')?.value.trim() || ''
+  })).filter(e => e.from || e.subject || e.body);
+
+  const topologyUrl = document.getElementById('fTopologyUrl')?.value.trim() || null;
+  const osintPackageUrl = document.getElementById('fOsintPackageUrl')?.value.trim() || null;
+
+  const target_artifacts = JSON.stringify({
+    topologyUrl,
+    osintPackageUrl,
+    emails
+  });
+
+  const blue_team_postmortem = document.getElementById('fBlueTeamPostmortem')?.value.trim() || null;
+  const remediation_bonus_points = document.getElementById('fRemediationBonusPoints')?.value !== '' ? Number(document.getElementById('fRemediationBonusPoints').value) : 25;
+  const remediation_guide = document.getElementById('fRemediationGuide')?.value.trim() || null;
+
   const description = document.getElementById('fDescription').value;
   const link = document.getElementById('fLink').value.trim();
   const flag = document.getElementById('fFlag').value.trim();
 
+  // Extract progressive hints and custom point deduction costs
   const hintRows = [...document.querySelectorAll('#hintsContainer .hint-row')];
   const hints = hintRows.map(row => {
-    const inputs = row.querySelectorAll('input');
-    return { text: inputs[0].value, cost: Number(inputs[1].value) || 0 };
-  }).filter(h => h.text.trim());
+    const textInput = row.querySelector('.hint-text-input');
+    const costInput = row.querySelector('.hint-cost-input');
+    return {
+      text: textInput ? textInput.value.trim() : '',
+      cost: costInput ? (Number(costInput.value) || 0) : 0
+    };
+  }).filter(h => h.text);
 
   const msg = document.getElementById('editorMsg');
 
@@ -1365,7 +1777,26 @@ async function saveChallenge() {
     return;
   }
 
-  const payload = { title, categoryId, points, difficulty, visible, isPractice: is_practice, requires, description, link, flag, hints };
+  const payload = {
+    title,
+    categoryId,
+    points,
+    difficulty,
+    visible,
+    isPractice: is_practice,
+    requires,
+    ticket_number,
+    target_asset,
+    corporate_context,
+    target_artifacts,
+    blue_team_postmortem,
+    remediation_bonus_points,
+    remediation_guide,
+    description,
+    link,
+    flag,
+    hints
+  };
 
   let res;
   if (editingChallengeId) {
@@ -1762,7 +2193,10 @@ function renderChatTeamList(teams) {
 async function openAdminChat(teamId, teamName) {
   activeChatTeamId = Number(teamId);
   renderChatTeamList(allChatTeams);
-  document.getElementById('chatAdminHeader').innerHTML = `<span>Chatting with: <strong style="color:var(--primary);">${escapeHtml(teamName)}</strong></span>`;
+  document.getElementById('chatAdminHeader').innerHTML = `
+    <span>Chatting with: <strong style="color:var(--primary);">${escapeHtml(teamName)}</strong></span>
+    <button class="btn-ghost btn-sm" style="color:#ff5252; border-color:rgba(255,82,82,0.4); font-size:11px; padding:3px 8px;" onclick="wipeAdminChat(${teamId})">🗑️ Wipe Chat</button>
+  `;
   const input = document.getElementById('chatAdminInput');
   const btn = document.getElementById('chatAdminSendBtn');
   input.disabled = false;
@@ -1781,6 +2215,32 @@ async function openAdminChat(teamId, teamName) {
     }
   } catch (err) {
     console.error('openAdminChat error:', err);
+  }
+}
+
+async function wipeAdminChat(teamId) {
+  if (!confirm('Are you sure you want to permanently wipe all chat messages for this team?')) return;
+  try {
+    const res = await fetch('/api/admin/chat/messages/' + teamId, { method: 'DELETE' });
+    if (res.ok) {
+      document.getElementById('chatAdminMessages').innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">Chat messages wiped successfully.</div>';
+      loadChatTeams();
+    }
+  } catch (err) {
+    console.error('Error wiping chat:', err);
+  }
+}
+
+async function wipeAllAdminChats() {
+  if (!confirm('Are you sure you want to permanently wipe ALL chat messages from the entire platform? This frees database space.')) return;
+  try {
+    const res = await fetch('/api/admin/chat/messages', { method: 'DELETE' });
+    if (res.ok) {
+      document.getElementById('chatAdminMessages').innerHTML = '<div style="color:var(--text-muted); text-align:center; margin-top:40px;">All chat messages have been wiped.</div>';
+      loadChatTeams();
+    }
+  } catch (err) {
+    console.error('Error wiping all chats:', err);
   }
 }
 
@@ -1825,14 +2285,151 @@ if (fbSocket) {
 
   fbSocket.on('admin:alert', (data) => {
     const list = document.getElementById('securityAlertsList');
-    if (!list) return;
-    if (list.innerHTML.includes('No security alerts')) list.innerHTML = '';
-    
-    const d = document.createElement('div');
-    d.className = 'alert alert-error';
-    d.innerHTML = `<strong>[${new Date(data.timestamp).toLocaleTimeString()}] ${data.type}:</strong> ${data.message}`;
-    list.prepend(d);
+    if (list) {
+      if (list.innerHTML.includes('No security alerts')) list.innerHTML = '';
+      const d = document.createElement('div');
+      d.className = 'alert alert-error';
+      d.innerHTML = `<strong>[${new Date(data.timestamp || Date.now()).toLocaleTimeString()}] ${data.type || 'SECURITY'}:</strong> ${escapeHtml(data.message)}`;
+      list.prepend(d);
+    }
+    loadSecurityDashboard();
   });
+
+  fbSocket.on('ids:update', () => {
+    loadQuarantines();
+  });
+}
+
+// ---------- Security & Blue Team IDS ----------
+async function loadSecurityDashboard() {
+  await loadQuarantines();
+  await loadIdsLogs();
+}
+
+async function loadQuarantines() {
+  try {
+    const res = await fetch('/api/admin/ids/quarantine');
+    const data = await res.json();
+    const box = document.getElementById('activeQuarantinesList');
+    const badge = document.getElementById('quarantineCountBadge');
+    if (!box) return;
+    
+    if (badge) badge.textContent = `${(data || []).length} Active`;
+    if (!data || data.length === 0) {
+      box.innerHTML = '<div style="color:var(--text-muted); font-style:italic; padding:12px 0;">No active IP or team quarantines. Target instances operating normally.</div>';
+      return;
+    }
+
+    let html = `
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-color); color:var(--text-muted); text-align:left;">
+            <th style="padding:8px;">Actor / Target</th>
+            <th style="padding:8px;">IP Address</th>
+            <th style="padding:8px;">Trigger Rule</th>
+            <th style="padding:8px;">Reason / Signature</th>
+            <th style="padding:8px;">Remaining Lockout</th>
+            <th style="padding:8px; text-align:right;">Action</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    data.forEach(q => {
+      const min = Math.floor(q.remainingSeconds / 60);
+      const sec = q.remainingSeconds % 60;
+      html += `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:8px; font-weight:bold; color:#ff3366;">${escapeHtml(q.teamName || 'Unknown')}</td>
+          <td style="padding:8px; font-family:var(--mono);">${escapeHtml(q.ip)}</td>
+          <td style="padding:8px;"><span style="background:rgba(255,51,102,0.15); color:#ff3366; padding:2px 6px; border-radius:4px; font-family:var(--mono); font-size:11px;">${escapeHtml(q.triggerRule)}</span></td>
+          <td style="padding:8px; color:var(--text-muted); max-width:240px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${escapeHtml(q.reason)}</td>
+          <td style="padding:8px; font-family:var(--mono); color:#00e5ff;">⏱ ${min}m ${sec}s</td>
+          <td style="padding:8px; text-align:right;">
+            <button class="btn-ghost btn-sm" style="color:var(--success); border-color:var(--success); font-size:11px; padding:2px 8px;" onclick="unbanQuarantinedActor('${escapeHtml(q.key)}')">🔓 Lift Ban</button>
+          </td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading quarantines:', err);
+  }
+}
+
+async function unbanQuarantinedActor(key) {
+  try {
+    const res = await fetch('/api/admin/ids/unban', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ key })
+    });
+    if (res.ok) {
+      loadQuarantines();
+    }
+  } catch (e) {
+    console.error('Error lifting quarantine:', e);
+  }
+}
+
+async function loadIdsLogs() {
+  try {
+    const res = await fetch('/api/admin/ids/logs');
+    const logs = await res.json();
+    const box = document.getElementById('idsLogsTableContainer');
+    if (!box) return;
+
+    if (!logs || logs.length === 0) {
+      box.innerHTML = '<div style="color:var(--text-muted); font-style:italic; padding:12px 0;">No IDS security events recorded yet.</div>';
+      return;
+    }
+
+    let html = `
+      <table style="width:100%; border-collapse:collapse; font-size:12px; margin-top:8px;">
+        <thead>
+          <tr style="border-bottom:1px solid var(--border-color); color:var(--text-muted); text-align:left;">
+            <th style="padding:8px;">Time</th>
+            <th style="padding:8px;">Team / IP</th>
+            <th style="padding:8px;">Detection Rule</th>
+            <th style="padding:8px;">Forensic Details</th>
+            <th style="padding:8px;">Action Taken</th>
+          </tr>
+        </thead>
+        <tbody>
+    `;
+
+    logs.forEach(l => {
+      const timeStr = l.created_at ? new Date(l.created_at).toLocaleTimeString() : '';
+      html += `
+        <tr style="border-bottom:1px solid rgba(255,255,255,0.05);">
+          <td style="padding:8px; font-family:var(--mono); color:var(--text-muted);">${timeStr}</td>
+          <td style="padding:8px; font-weight:bold;">${escapeHtml(l.team_name || l.ip)}</td>
+          <td style="padding:8px;"><span style="background:rgba(255,183,77,0.15); color:#ffb74d; padding:2px 6px; border-radius:4px; font-family:var(--mono); font-size:11px;">${escapeHtml(l.trigger_rule)}</span></td>
+          <td style="padding:8px; color:var(--text-muted);">${escapeHtml(l.details)}</td>
+          <td style="padding:8px; font-family:var(--mono); color:#ff3366;">${escapeHtml(l.action_taken || 'Quarantine')}</td>
+        </tr>
+      `;
+    });
+
+    html += '</tbody></table>';
+    box.innerHTML = html;
+  } catch (err) {
+    console.error('Error loading IDS logs:', err);
+  }
+}
+
+async function clearIdsLogs() {
+  if (!confirm('Clear all IDS incident logs?')) return;
+  try {
+    const res = await fetch('/api/admin/ids/logs', { method: 'DELETE' });
+    if (res.ok) {
+      loadIdsLogs();
+    }
+  } catch (e) {
+    console.error('Error clearing logs:', e);
+  }
 }
 
 function sendAdminChat() {
@@ -1876,6 +2473,7 @@ document.getElementById('stopTimerBtn').onclick = async () => {
 document.querySelectorAll('.admin-sidebar button').forEach(btn => {
   btn.addEventListener('click', () => {
     if (btn.dataset.section === 'chat') loadChatTeams();
+    if (btn.dataset.section === 'security') loadSecurityDashboard();
   });
 });
 

@@ -31,7 +31,10 @@
       <div id="chatPanel" class="chat-panel hidden">
         <div class="chat-header">
           <h3 id="chatTitle">SYNDICATE COMMS</h3>
-          <button id="chatCloseBtn" aria-label="Close Chat">&times;</button>
+          <div style="display: flex; align-items: center; gap: 8px;">
+            <button id="chatClearBtn" title="Wipe chat history" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 13px; padding: 2px 4px; transition: color 0.2s;" onmouseover="this.style.color='#ff5252'" onmouseout="this.style.color='var(--text-muted)'">🗑️</button>
+            <button id="chatCloseBtn" aria-label="Close Chat">&times;</button>
+          </div>
         </div>
         <div id="chatMessages" class="chat-messages">
           <div class="chat-msg admin-msg">
@@ -55,8 +58,28 @@
     const chatBadge = document.getElementById('chatBadge');
     const chatMessages = document.getElementById('chatMessages');
     const chatCloseBtn = document.getElementById('chatCloseBtn');
+    const chatClearBtn = document.getElementById('chatClearBtn');
     const chatInput = document.getElementById('chatInput');
     const chatSendBtn = document.getElementById('chatSendBtn');
+
+    if (chatClearBtn) {
+      chatClearBtn.onclick = async () => {
+        if (!confirm('Wipe chat history for this session?')) return;
+        try {
+          const res = await fetch('/api/chat/messages', { method: 'DELETE' });
+          if (res.ok) {
+            chatMessages.innerHTML = `
+              <div class="chat-msg admin-msg">
+                <div style="font-size: 10px; opacity: 0.8; margin-bottom: 2px;">🛡️ System Support</div>
+                <div>Chat history wiped.</div>
+              </div>
+            `;
+          }
+        } catch (err) {
+          console.error('Error clearing chat:', err);
+        }
+      };
+    }
 
     // Toggle Panel
     chatIcon.onclick = () => {

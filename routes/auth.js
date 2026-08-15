@@ -161,7 +161,15 @@ router.post('/login', async (req, res) => {
     name: team.name
   });
 });
-router.post('/logout', (req, res) => {
+router.post('/logout', async (req, res) => {
+  const teamId = req.session ? req.session.teamId : null;
+  if (teamId) {
+    try {
+      await db.prepare('DELETE FROM messages WHERE team_id = ?').run(teamId);
+    } catch (e) {
+      console.error('Error wiping chat messages on logout:', e);
+    }
+  }
   req.session.destroy(() => res.json({
     ok: true
   }));
