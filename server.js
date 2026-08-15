@@ -18,6 +18,14 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const pgSession = require('connect-pg-simple')(session);
 
+// Global Error Safety
+process.on('unhandledRejection', (reason, promise) => {
+  console.warn('[Server] Unhandled Rejection (handled safely):', reason && reason.message ? reason.message : reason);
+});
+process.on('uncaughtException', (err) => {
+  console.error('[Server] Uncaught Exception (handled safely):', err.message);
+});
+
 // Global Sandbox Active Map
 global.activeSandboxes = global.activeSandboxes || new Map();
 
