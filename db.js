@@ -110,7 +110,8 @@ const db = {
         target_artifacts TEXT,
         blue_team_postmortem TEXT,
         remediation_bonus_points INTEGER DEFAULT 25,
-        remediation_guide TEXT
+        remediation_guide TEXT,
+        base_flag TEXT
       );
 
       CREATE TABLE IF NOT EXISTS remediations (
@@ -255,6 +256,7 @@ const db = {
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS blue_team_postmortem TEXT');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS remediation_bonus_points INTEGER DEFAULT 25');
       await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS remediation_guide TEXT');
+      await pool.query('ALTER TABLE challenges ADD COLUMN IF NOT EXISTS base_flag TEXT');
       await pool.query(`
         CREATE TABLE IF NOT EXISTS remediations (
           id SERIAL PRIMARY KEY,

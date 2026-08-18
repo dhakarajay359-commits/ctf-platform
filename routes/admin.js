@@ -213,10 +213,11 @@ module.exports = function (io) {
         error: 'Title, points, and flag are required.'
       });
     }
-    const flagHash = bcrypt.hashSync(String(flag).trim(), 10);
+    const cleanFlag = String(flag).trim();
+    const flagHash = bcrypt.hashSync(cleanFlag, 10);
     const info = await db.prepare(`
-      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice, corporate_context, target_asset, ticket_number, target_artifacts, blue_team_postmortem, remediation_bonus_points, remediation_guide)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice, corporate_context, target_asset, ticket_number, target_artifacts, blue_team_postmortem, remediation_bonus_points, remediation_guide, base_flag)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title.trim(),
       categoryId || null,
@@ -234,7 +235,8 @@ module.exports = function (io) {
       target_artifacts || null,
       blue_team_postmortem || null,
       remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : 25,
-      remediation_guide || null
+      remediation_guide || null,
+      cleanFlag
     );
     const challengeId = info.lastInsertRowid;
     if (Array.isArray(hints)) {
@@ -272,31 +274,34 @@ module.exports = function (io) {
     if (!existing) return res.status(404).json({
       error: 'Challenge not found.'
     });
-    const flagHash = flag && flag.trim() ? bcrypt.hashSync(flag.trim(), 10) : existing.flag_hash;
+    const cleanFlag = flag && flag.trim() ? flag.trim() : null;
+    const flagHash = cleanFlag ? bcrypt.hashSync(cleanFlag, 10) : existing.flag_hash;
+    const baseFlag = cleanFlag ? cleanFlag : existing.base_flag;
     await db.prepare(`
       UPDATE challenges SET title = ?, category_id = ?, description = ?, points = ?,
         flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?,
         corporate_context = ?, target_asset = ?, ticket_number = ?, target_artifacts = ?,
-        blue_team_postmortem = ?, remediation_bonus_points = ?, remediation_guide = ?
+        blue_team_postmortem = ?, remediation_bonus_points = ?, remediation_guide = ?, base_flag = ?
       WHERE id = ?
     `).run(
       title ?? existing.title,
       categoryId ?? existing.category_id,
       description ?? existing.description,
-      points !== undefined ? Number(points) : existing.points,
+      points !== undefined && points !== null && points !== '' ? Number(points) : existing.points,
       flagHash,
       difficulty ?? existing.difficulty,
       link ?? existing.link,
-      visible === false ? 0 : 1,
+      visible !== undefined ? (visible === false || visible === 0 ? 0 : 1) : existing.visible,
       requires !== undefined ? (requires ? Number(requires) : null) : existing.requires,
       isPractice !== undefined ? (isPractice ? 1 : 0) : existing.is_practice,
-      corporate_context !== undefined ? corporate_context : existing.corporate_context,
-      target_asset !== undefined ? target_asset : existing.target_asset,
-      ticket_number !== undefined ? ticket_number : existing.ticket_number,
-      target_artifacts !== undefined ? target_artifacts : existing.target_artifacts,
-      blue_team_postmortem !== undefined ? blue_team_postmortem : existing.blue_team_postmortem,
+      corporate_context ?? existing.corporate_context,
+      target_asset ?? existing.target_asset,
+      ticket_number ?? existing.ticket_number,
+      target_artifacts ?? existing.target_artifacts,
+      blue_team_postmortem ?? existing.blue_team_postmortem,
       remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : existing.remediation_bonus_points,
-      remediation_guide !== undefined ? remediation_guide : existing.remediation_guide,
+      remediation_guide ?? existing.remediation_guide,
+      baseFlag,
       id
     );
     res.json({

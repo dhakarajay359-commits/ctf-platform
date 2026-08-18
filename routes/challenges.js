@@ -178,7 +178,7 @@ module.exports = function (io) {
     const challenges = await db.prepare(`
       SELECT c.id, c.title, c.category_id, cat.name AS category, c.description,
              c.points, c.difficulty, c.link, c.requires, c.docker_image, c.is_practice,
-             c.corporate_context, c.target_asset, c.ticket_number, c.target_artifacts
+             c.corporate_context, c.target_asset, c.ticket_number, c.target_artifacts, c.base_flag
           FROM challenges c
           LEFT JOIN categories cat ON cat.id = c.category_id
           WHERE c.visible = 1
@@ -221,19 +221,39 @@ module.exports = function (io) {
         };
       });
       let customDesc = c.description;
-      if (teamId && customDesc) {
-        const teamDynFlag = generateDynamicFlag(c.id, teamId);
-        if (customDesc.includes('{DYNAMIC_FLAG}')) {
+      let customArtifacts = c.target_artifacts;
+      let customLink = c.link;
+
+      if (teamId) {
+        const teamDynFlag = generateDynamicFlag(c.id, teamId, c.base_flag);
+
+        if (customDesc) {
           customDesc = customDesc.replace(/\{DYNAMIC_FLAG\}/g, teamDynFlag);
-        }
-        if (customDesc.includes('{TEAM_ID}')) {
           customDesc = customDesc.replace(/\{TEAM_ID\}/g, String(teamId));
+          if (c.base_flag && customDesc.includes(c.base_flag)) {
+            customDesc = customDesc.split(c.base_flag).join(teamDynFlag);
+          }
+        }
+        if (customArtifacts) {
+          customArtifacts = customArtifacts.replace(/\{DYNAMIC_FLAG\}/g, teamDynFlag);
+          customArtifacts = customArtifacts.replace(/\{TEAM_ID\}/g, String(teamId));
+          if (c.base_flag && customArtifacts.includes(c.base_flag)) {
+            customArtifacts = customArtifacts.split(c.base_flag).join(teamDynFlag);
+          }
+        }
+        if (customLink) {
+          customLink = customLink.replace(/\{DYNAMIC_FLAG\}/g, encodeURIComponent(teamDynFlag));
+          customLink = customLink.replace(/\{TEAM_ID\}/g, String(teamId));
         }
       }
 
       return {
         ...c,
+        base_flag: undefined,
+        flag_hash: undefined,
         description: customDesc,
+        target_artifacts: customArtifacts,
+        link: customLink,
         solved: solvedIds.has(c.id),
         claimed_by: claims[c.id] || null,
         hints,
