@@ -206,7 +206,8 @@ module.exports = function (io) {
       target_artifacts,
       blue_team_postmortem,
       remediation_bonus_points,
-      remediation_guide
+      remediation_guide,
+      docker_image
     } = req.body;
     if (!title || !flag || points === undefined || points === null || points === '') {
       return res.status(400).json({
@@ -216,8 +217,8 @@ module.exports = function (io) {
     const cleanFlag = String(flag).trim();
     const flagHash = bcrypt.hashSync(cleanFlag, 10);
     const info = await db.prepare(`
-      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice, corporate_context, target_asset, ticket_number, target_artifacts, blue_team_postmortem, remediation_bonus_points, remediation_guide, base_flag)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+      INSERT INTO challenges (title, category_id, description, points, flag_hash, difficulty, link, visible, requires, is_practice, corporate_context, target_asset, ticket_number, target_artifacts, blue_team_postmortem, remediation_bonus_points, remediation_guide, docker_image, base_flag)
+      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).run(
       title.trim(),
       categoryId || null,
@@ -236,6 +237,7 @@ module.exports = function (io) {
       blue_team_postmortem || null,
       remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : 25,
       remediation_guide || null,
+      docker_image || null,
       cleanFlag
     );
     const challengeId = info.lastInsertRowid;
@@ -268,7 +270,8 @@ module.exports = function (io) {
       target_artifacts,
       blue_team_postmortem,
       remediation_bonus_points,
-      remediation_guide
+      remediation_guide,
+      docker_image
     } = req.body;
     const existing = await db.prepare('SELECT * FROM challenges WHERE id = ?').get(id);
     if (!existing) return res.status(404).json({
@@ -281,7 +284,7 @@ module.exports = function (io) {
       UPDATE challenges SET title = ?, category_id = ?, description = ?, points = ?,
         flag_hash = ?, difficulty = ?, link = ?, visible = ?, requires = ?, is_practice = ?,
         corporate_context = ?, target_asset = ?, ticket_number = ?, target_artifacts = ?,
-        blue_team_postmortem = ?, remediation_bonus_points = ?, remediation_guide = ?, base_flag = ?
+        blue_team_postmortem = ?, remediation_bonus_points = ?, remediation_guide = ?, docker_image = ?, base_flag = ?
       WHERE id = ?
     `).run(
       title ?? existing.title,
@@ -301,6 +304,7 @@ module.exports = function (io) {
       blue_team_postmortem ?? existing.blue_team_postmortem,
       remediation_bonus_points !== undefined ? Number(remediation_bonus_points) : existing.remediation_bonus_points,
       remediation_guide ?? existing.remediation_guide,
+      docker_image ?? existing.docker_image,
       baseFlag,
       id
     );

@@ -1377,8 +1377,66 @@ function openEditor(challenge, isLiveContext = true) {
     <label for="fLink">Resource link (optional)</label>
     <input id="fLink" value="${challenge?.link ? escapeHtml(challenge.link) : ''}" placeholder="https://...">
 
-    <label for="fFlag">Flag ${challenge ? '(leave blank to keep current)' : ''}</label>
-    <input id="fFlag" placeholder="flag{...}">
+    <!-- 🚩 DYNAMIC FLAG & PLACEMENT ENGINE CONFIGURATION -->
+    <div style="background: rgba(0,210,255,0.03); border: 1px solid rgba(0,210,255,0.3); border-radius: 6px; padding: 14px; margin-top: 15px; margin-bottom: 15px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:8px;">
+        <span style="font-weight:bold; font-size:12px; color:var(--primary); font-family:var(--mono);">🚩 DYNAMIC FLAG & PLACEMENT ENGINE</span>
+        <span style="font-size:11px; background:rgba(0,255,102,0.1); color:#00ff66; border:1px solid rgba(0,255,102,0.3); padding:2px 8px; border-radius:10px; font-family:var(--mono);">🛡️ Anti-Cheat Active</span>
+      </div>
+
+      <p style="font-size:12px; color:var(--text-muted); margin-top:0; margin-bottom:12px;">
+        Enter your <strong>Base Flag</strong> below. The platform will automatically calculate unique cryptographic permutations for every team and swap the flag at the exact location you choose.
+      </p>
+
+      <div class="field-row">
+        <div style="flex:2;">
+          <label for="fFlag" style="font-weight:bold; color:#fff;">Base Flag ${challenge ? '(leave blank to keep current)' : ''}</label>
+          <input id="fFlag" value="${challenge?.base_flag ? escapeHtml(challenge.base_flag) : ''}" placeholder="FLAG{secret_vault_password_1337}" style="font-family:var(--mono); border-color:var(--primary);">
+        </div>
+        <div style="flex:1;">
+          <label for="fFlagDelivery">Flag Delivery Location</label>
+          <select id="fFlagDelivery" onchange="toggleFlagDeliveryOptions(this.value)">
+            <option value="description" selected>📝 In Problem Notes / Text</option>
+            <option value="docker" ${challenge?.docker_image ? 'selected' : ''}>🐳 In Docker Sandbox Instance</option>
+            <option value="artifacts">📦 In OSINT File Download</option>
+            <option value="link">🔗 In Resource Web Link</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Quick Action Buttons for Flag Placement -->
+      <div style="display:flex; gap:8px; margin-top:8px; margin-bottom:12px; flex-wrap:wrap;">
+        <button type="button" class="btn-ghost btn-sm" id="insertDynamicFlagTagBtn" style="font-size:11px; padding:3px 8px; border-color:var(--primary); color:var(--primary);">
+          ⚡ Insert {DYNAMIC_FLAG} into Problem Text
+        </button>
+        <button type="button" class="btn-ghost btn-sm" id="insertBaseFlagTagBtn" style="font-size:11px; padding:3px 8px; border-color:#ffb74d; color:#ffb74d;">
+          ⚡ Paste Base Flag into Problem Text
+        </button>
+      </div>
+
+      <!-- Docker Image Input (Shown when Docker Sandbox is selected or image is present) -->
+      <div id="dockerOptionsBox" class="${challenge?.docker_image ? '' : 'hidden'}" style="background:rgba(0,0,0,0.3); border:1px solid rgba(0,210,255,0.2); border-radius:4px; padding:10px; margin-bottom:12px;">
+        <label for="fDockerImage" style="font-size:11px; font-weight:bold; color:var(--primary);">🐳 Docker Container Image (Sandbox Instance)</label>
+        <input id="fDockerImage" value="${challenge?.docker_image ? escapeHtml(challenge.docker_image) : ''}" placeholder="e.g. ctf-web-sqli:latest or ghcr.io/org/hard-sandbox:latest" style="font-family:var(--mono); margin:0;">
+        <span style="font-size:10px; color:var(--text-muted); display:block; margin-top:4px;">
+          When a team clicks "Deploy Sandbox", an isolated container spawns with this team's dynamic flag injected as <code>FLAG</code>, <code>CTF_FLAG</code>, and in <code>/flag.txt</code>.
+        </span>
+      </div>
+
+      <!-- Live Dynamic Permutation Preview Simulator -->
+      <div style="background:rgba(0,0,0,0.4); border:1px dashed var(--border-color); border-radius:4px; padding:10px;">
+        <div style="font-size:11px; font-weight:bold; color:#ffb74d; font-family:var(--mono); margin-bottom:6px;">
+          🔮 LIVE MULTI-TEAM PERMUTATION PREVIEW (What Teams Will See):
+        </div>
+        <div style="display:flex; flex-direction:column; gap:4px; font-family:var(--mono); font-size:11px;">
+          <div><span style="color:#00d2ff;">Team Alpha (ID 8):</span> <span id="previewFlagTeamA" style="color:var(--success);">FLAG{..._team_8}</span></div>
+          <div><span style="color:#00d2ff;">Team Beta  (ID 9):</span> <span id="previewFlagTeamB" style="color:var(--success);">FLAG{..._team_9}</span></div>
+          <div style="color:var(--text-muted); font-size:10px; margin-top:2px;">
+            ✓ Each team gets an isolated, tamper-proof flag. Submitting another team's flag triggers instant Anti-Cheat lockout.
+          </div>
+        </div>
+      </div>
+    </div>
 
     <!-- Blue Team Post-Mortem & Remediation Configuration -->
     <div style="background: rgba(0,255,136,0.03); border: 1px solid rgba(0,255,136,0.25); border-radius: 6px; padding: 14px; margin-top: 15px; margin-bottom: 15px;">
@@ -1427,6 +1485,50 @@ function openEditor(challenge, isLiveContext = true) {
   document.getElementById('editorBackdrop').classList.remove('hidden');
   document.getElementById('closeEditor').onclick = closeEditor;
   document.getElementById('cancelEditorBtn').onclick = closeEditor;
+
+  // Live Dynamic Flag Previews & Helpers
+  window.toggleFlagDeliveryOptions = function(val) {
+    const box = document.getElementById('dockerOptionsBox');
+    if (box) {
+      if (val === 'docker') box.classList.remove('hidden');
+      else box.classList.add('hidden');
+    }
+  };
+
+  const flagInput = document.getElementById('fFlag');
+  const previewA = document.getElementById('previewFlagTeamA');
+  const previewB = document.getElementById('previewFlagTeamB');
+
+  function updateFlagPreviews() {
+    const val = flagInput ? (flagInput.value.trim() || 'FLAG{secret_vault_token}') : 'FLAG{secret_vault_token}';
+    const inner = val.replace(/^(flag|FLAG)\{/i, '').replace(/\}$/, '').trim() || 'token';
+    if (previewA) previewA.textContent = `FLAG{${inner}_12d6acf6_team_8}`;
+    if (previewB) previewB.textContent = `FLAG{${inner}_627d460b_team_9}`;
+  }
+
+  if (flagInput) {
+    flagInput.oninput = updateFlagPreviews;
+    updateFlagPreviews();
+  }
+
+  const insertDynBtn = document.getElementById('insertDynamicFlagTagBtn');
+  if (insertDynBtn) {
+    insertDynBtn.onclick = () => {
+      const ta = document.getElementById('fDescription');
+      ta.value += ' {DYNAMIC_FLAG}';
+      document.getElementById('mdPreview').innerHTML = marked.parse(ta.value);
+    };
+  }
+
+  const insertBaseBtn = document.getElementById('insertBaseFlagTagBtn');
+  if (insertBaseBtn) {
+    insertBaseBtn.onclick = () => {
+      const val = flagInput ? (flagInput.value.trim() || 'FLAG{secret_vault_token}') : 'FLAG{secret_vault_token}';
+      const ta = document.getElementById('fDescription');
+      ta.value += ` ${val}`;
+      document.getElementById('mdPreview').innerHTML = marked.parse(ta.value);
+    };
+  }
 
   // Populate requires dropdown with existing challenges
   fetch('/api/admin/challenges').then(r => r.json()).then(allChals => {
@@ -1807,6 +1909,7 @@ async function saveChallenge() {
     description,
     link,
     flag,
+    docker_image: document.getElementById('fDockerImage')?.value.trim() || null,
     hints
   };
 
