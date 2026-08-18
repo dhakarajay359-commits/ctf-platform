@@ -220,8 +220,20 @@ module.exports = function (io) {
           text: revealedHintIds.has(h.id) ? h.text : null
         };
       });
+      let customDesc = c.description;
+      if (teamId && customDesc) {
+        const teamDynFlag = generateDynamicFlag(c.id, teamId);
+        if (customDesc.includes('{DYNAMIC_FLAG}')) {
+          customDesc = customDesc.replace(/\{DYNAMIC_FLAG\}/g, teamDynFlag);
+        }
+        if (customDesc.includes('{TEAM_ID}')) {
+          customDesc = customDesc.replace(/\{TEAM_ID\}/g, String(teamId));
+        }
+      }
+
       return {
         ...c,
+        description: customDesc,
         solved: solvedIds.has(c.id),
         claimed_by: claims[c.id] || null,
         hints,
@@ -341,9 +353,11 @@ module.exports = function (io) {
         });
 
         try {
-          await db.prepare('INSERT INTO ids_logs (team_id, trigger_type, description) VALUES (?, ?, ?)')
-            .run(teamId, 'FLAG_SHARING', `Submitted dynamic flag belonging to ${sourceName}`);
-        } catch(e) {}
+          await db.prepare('INSERT INTO ids_logs (team_id, team_name, trigger_rule, details, action_taken) VALUES (?, ?, ?, ?, ?)')
+            .run(teamId, req.session.teamName || `Team #${teamId}`, 'FLAG_SHARING', `Submitted dynamic flag belonging to ${sourceName}`, 'BLOCKED_AND_LOGGED');
+        } catch(e) {
+          console.error('IDS Log Error:', e.message);
+        }
 
         return res.status(200).json({
           correct: false,

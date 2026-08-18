@@ -5,14 +5,24 @@ const SECRET_SALT = process.env.FLAG_SECRET || process.env.SESSION_SECRET || 'ct
 
 /**
  * Generate a cryptographically signed dynamic flag tied to a challenge and team ID.
- * Example format: FLAG{a8f9c1b3e4d29107_team_42}
+ * Supports:
+ * - Admin base flag permutation: FLAG{<admin_keyword>_<hash>_team_<teamId>}
+ * - Standard dynamic signature: FLAG{<hash>_team_<teamId>}
  */
-function generateDynamicFlag(challengeId, teamId) {
+function generateDynamicFlag(challengeId, teamId, baseFlag = null) {
+  const chalId = typeof challengeId === 'object' && challengeId !== null ? challengeId.id : challengeId;
   const hash = crypto.createHmac('sha256', SECRET_SALT)
-    .update(`chal_${challengeId}_team_${teamId}`)
-    .digest('hex')
-    .substring(0, 16);
-  return `FLAG{${hash}_team_${teamId}}`;
+    .update(`chal_${chalId}_team_${teamId}`)
+    .digest('hex');
+
+  if (baseFlag && typeof baseFlag === 'string') {
+    const cleanBase = baseFlag.replace(/^(flag|FLAG)\{/i, '').replace(/\}$/, '').trim();
+    if (cleanBase) {
+      return `FLAG{${cleanBase}_${hash.substring(0, 8)}_team_${teamId}}`;
+    }
+  }
+
+  return `FLAG{${hash.substring(0, 16)}_team_${teamId}}`;
 }
 
 /**
@@ -23,10 +33,15 @@ function verifyFlag(submittedFlag, challenge, teamId) {
   if (!submittedFlag || !challenge) return { valid: false };
   const trimmed = submittedFlag.trim();
 
-  // 1. Check Team's Dynamic Flag
-  const expectedDynamic = generateDynamicFlag(challenge.id, teamId);
-  if (trimmed === expectedDynamic || trimmed.toLowerCase() === expectedDynamic.toLowerCase()) {
-    return { valid: true, type: 'dynamic', flag: expectedDynamic };
+  // 1. Check Team's Dynamic Flags (both standard and base-permuted)
+  const expectedStandard = generateDynamicFlag(challenge.id, teamId);
+  const expectedPermuted = generateDynamicFlag(challenge.id, teamId, challenge.flag || challenge.base_flag);
+
+  if (trimmed === expectedStandard || trimmed.toLowerCase() === expectedStandard.toLowerCase()) {
+    return { valid: true, type: 'dynamic', flag: expectedStandard };
+  }
+  if (expectedPermuted && (trimmed === expectedPermuted || trimmed.toLowerCase() === expectedPermuted.toLowerCase())) {
+    return { valid: true, type: 'dynamic', flag: expectedPermuted };
   }
 
   // 2. Check Static Flag
@@ -45,12 +60,15 @@ function verifyFlag(submittedFlag, challenge, teamId) {
   }
 
   // 3. Anti-Cheat: Detect cross-team flag sharing (Discord flag leaks)
-  const match = trimmed.match(/^FLAG\{([a-f0-9]{16})_team_(\d+)\}$/i);
+  const match = trimmed.match(/^FLAG\{.*_team_(\d+)\}$/i);
   if (match) {
-    const otherTeamId = Number(match[2]);
+    const otherTeamId = Number(match[1]);
     if (otherTeamId && otherTeamId !== Number(teamId)) {
-      const otherExpected = generateDynamicFlag(challenge.id, otherTeamId);
-      if (trimmed.toLowerCase() === otherExpected.toLowerCase()) {
+      const otherStandard = generateDynamicFlag(challenge.id, otherTeamId);
+      const otherPermuted = generateDynamicFlag(challenge.id, otherTeamId, challenge.flag || challenge.base_flag);
+
+      if (trimmed.toLowerCase() === otherStandard.toLowerCase() || 
+          (otherPermuted && trimmed.toLowerCase() === otherPermuted.toLowerCase())) {
         return {
           valid: false,
           flagSharingDetected: true,
