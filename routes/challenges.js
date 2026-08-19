@@ -230,16 +230,10 @@ module.exports = function (io) {
         if (customDesc) {
           customDesc = customDesc.replace(/\{DYNAMIC_FLAG\}/g, teamDynFlag);
           customDesc = customDesc.replace(/\{TEAM_ID\}/g, String(teamId));
-          if (c.base_flag && customDesc.includes(c.base_flag)) {
-            customDesc = customDesc.split(c.base_flag).join(teamDynFlag);
-          }
         }
         if (customArtifacts) {
           customArtifacts = customArtifacts.replace(/\{DYNAMIC_FLAG\}/g, teamDynFlag);
           customArtifacts = customArtifacts.replace(/\{TEAM_ID\}/g, String(teamId));
-          if (c.base_flag && customArtifacts.includes(c.base_flag)) {
-            customArtifacts = customArtifacts.split(c.base_flag).join(teamDynFlag);
-          }
         }
         if (customLink) {
           customLink = customLink.replace(/\{DYNAMIC_FLAG\}/g, encodeURIComponent(teamDynFlag));
