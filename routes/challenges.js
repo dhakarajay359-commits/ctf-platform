@@ -495,8 +495,8 @@ module.exports = function (io) {
     // Generate unique dynamic flag based on user's session/team ID
     const dynamicFlag = generateDynamicFlag(challengeId, teamId);
 
-    // Attempt to spawn isolated docker container with injected dynamic flag
-    exec(`docker run -d -P -e FLAG="${dynamicFlag}" -e CTF_FLAG="${dynamicFlag}" -e TEAM_ID="${teamId}" ${image}`, (error, stdout, stderr) => {
+    // Attempt to spawn isolated docker container with resource limits and injected dynamic flag
+    exec(`docker run -d -P --memory=256m --pids-limit=100 -e FLAG="${dynamicFlag}" -e CTF_FLAG="${dynamicFlag}" -e TEAM_ID="${teamId}" ${image}`, (error, stdout, stderr) => {
       if (error) {
         console.error('Docker run error:', error.message, stderr);
         if (error.message.includes('not recognized') || error.message.includes('not found') || error.message.includes('ENOENT') || stderr && stderr.includes('not recognized')) {

@@ -1,22 +1,26 @@
 # Use a lightweight Node.js operating system
 FROM node:18-alpine
 
-# Set the working directory inside the container
 WORKDIR /usr/src/app
 
 # Copy package files and install dependencies
 COPY package*.json ./
 RUN npm install
 
-# Copy the rest of the application files (including the secret flag)
-COPY . .
+# Copy application files
+COPY app.js ./
+COPY public.txt ./
 
-# Expose the port the app runs on
+# Security Best Practice: Store flag outside web roots (/root/flag.txt) with restricted permissions
+COPY flag.txt /root/flag.txt
+RUN chmod 444 /root/flag.txt
+
+# Entrypoint script to inject dynamic $FLAG or $CTF_FLAG if provided
+RUN echo '#!/bin/sh' > /entrypoint.sh && \
+    echo 'if [ ! -z "$FLAG" ]; then echo "$FLAG" > /root/flag.txt; chmod 444 /root/flag.txt; fi' >> /entrypoint.sh && \
+    echo 'exec su node -c "node /usr/src/app/app.js"' >> /entrypoint.sh && \
+    chmod +x /entrypoint.sh
+
 EXPOSE 8080
 
-# Security Best Practice: Drop root privileges!
-# Even if a hacker takes over the app, they won't have admin rights to the container.
-USER node
-
-# Start the vulnerable application
-CMD [ "node", "app.js" ]
+CMD [ "/bin/sh", "/entrypoint.sh" ]
